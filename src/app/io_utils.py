@@ -73,7 +73,8 @@ def parse_items_csv(data: bytes, encoding: str | None = None) -> List[dict]:
 
     out: List[dict] = []
     reader = csv.DictReader(io.StringIO(text))  # type: ignore[arg-type]
-    missing = [h for h in CSV_HEADERS if h not in reader.fieldnames[: len(CSV_HEADERS)] if reader.fieldnames]
+    fieldnames = reader.fieldnames or []
+    missing = [h for h in CSV_HEADERS if h not in fieldnames]
     if missing:
         raise ValueError(f"CSVヘッダーが不足しています: {missing}")
     for row in reader:

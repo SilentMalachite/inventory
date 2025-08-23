@@ -21,9 +21,24 @@ router = APIRouter(include_in_schema=False)
 
 
 @router.get("/")
-def dashboard_redirect():
-    # Full SPA requested: redirect top to /app
-    return RedirectResponse(url="/app", status_code=307)
+def index(request: Request, session: Session = Depends(get_session)):
+    # Render SSR dashboard
+    items = session.exec(select(Item)).all()
+    balances = compute_all_balances(session)
+    rows = []
+    for it in items:
+        bal = balances.get(it.id or 0, 0)
+        rows.append({
+            "id": it.id,
+            "sku": it.sku,
+            "name": it.name,
+            "category": it.category,
+            "unit": it.unit,
+            "min_stock": it.min_stock,
+            "balance": bal,
+            "low": bal < (it.min_stock or 0),
+        })
+    return templates.TemplateResponse("index.html", {"request": request, "items": rows})
 
 
 @router.get("/ui")

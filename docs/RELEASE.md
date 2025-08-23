@@ -3,8 +3,9 @@
 1. バージョン更新（必要に応じて `src/app/__init__.py` の `__version__` を更新）
 2. フロントエンドをビルド
    - `cd frontend && npm install && npm run build`
-3. onefile を生成
+3. onefile を生成（specはリポジトリ同梱の `inventory-app.spec` を使用）
    - `uv run pyinstaller inventory-app.spec`
+   - 備考: spec は `src/app/public` が無い場合はスキップしますが、配布物にはSPAを同梱することを推奨します
 4. 動作確認
    - `./dist/inventory-app` を起動
    - ブラウザで `/app` と主要APIを確認
@@ -12,4 +13,3 @@
 6. リリースノート作成（CHANGELOG）
 
 > 各OSはそのOS上でビルドしてください（クロスビルド不可）。
-

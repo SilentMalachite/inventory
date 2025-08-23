@@ -79,6 +79,9 @@ def update_item(
         raise HTTPException(status_code=404, detail=t("errors.item_not_found"))
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
+    # update timestamp
+    from datetime import datetime as _dt
+    item.updated_at = _dt.utcnow()
     session.add(item)
     session.commit()
     session.refresh(item)

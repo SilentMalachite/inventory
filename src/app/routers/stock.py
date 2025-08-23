@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from datetime import datetime
+import io
 from sqlmodel import Session
 
 from ..db import get_session
 from ..models import Item, StockMovement
 from ..i18n import get_translator, Translator
 from ..schemas import StockIn, StockOut, StockAdjust
-from ..services.inventory import compute_item_balance, compute_all_balances
+from ..services.inventory import compute_item_balance, compute_all_balances, compute_balances_for_items
 from ..audit import audit
 from sqlmodel import select
 
@@ -119,25 +122,74 @@ def search_inventory(
     size: int = Query(20, ge=1, le=200, description="1ページ件数"),
     session: Session = Depends(get_session),
 ):
-    stmt = select(Item)
+    from sqlalchemy import func, case
+    from sqlmodel import select
+
+    bal_expr = func.sum(case((StockMovement.type == "IN", StockMovement.qty), (StockMovement.type == "OUT", -StockMovement.qty), else_=StockMovement.qty))
+    bq = select(StockMovement.item_id, bal_expr.label("balance")).group_by(StockMovement.item_id).subquery("b")
+
+    bal_col = func.coalesce(bq.c.balance, 0)
+    base = select(Item, bal_col.label("balance")).select_from(Item).join(bq, bq.c.item_id == Item.id, isouter=True)
+
+    # filters
     if q:
         like = f"%{q}%"
-        stmt = stmt.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
+        base = base.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
     if category:
-        stmt = stmt.where(Item.category == category)
-    items = session.exec(stmt).all()
-    balances = compute_all_balances(session)
-    result = []
-    for it in items:
-        bal = balances.get(it.id or 0, 0)
-        if min_balance is not None and bal < min_balance:
-            continue
-        if max_balance is not None and bal > max_balance:
-            continue
-        low = bal < (it.min_stock or 0)
-        if low_only and not low:
-            continue
-        result.append({
+        base = base.where(Item.category == category)
+    if min_balance is not None:
+        base = base.where(bal_col >= min_balance)
+    if max_balance is not None:
+        base = base.where(bal_col <= max_balance)
+    if low_only:
+        base = base.where(bal_col < func.coalesce(Item.min_stock, 0))
+
+    # total count
+    count_stmt = select(func.count()).select_from(Item).join(bq, bq.c.item_id == Item.id, isouter=True)
+    if q:
+        like = f"%{q}%"
+        count_stmt = count_stmt.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
+    if category:
+        count_stmt = count_stmt.where(Item.category == category)
+    if min_balance is not None:
+        count_stmt = count_stmt.where(bal_col >= min_balance)
+    if max_balance is not None:
+        count_stmt = count_stmt.where(bal_col <= max_balance)
+    if low_only:
+        count_stmt = count_stmt.where(bal_col < func.coalesce(Item.min_stock, 0))
+    total = session.exec(count_stmt).one()
+
+    # ordering
+    keys = [k.strip() for k in sort_by.split(',') if k.strip()]
+    dirs = [d.strip().lower() for d in sort_dir.split(',') if d.strip()]
+    order_terms = []
+    for idx, k in enumerate(keys or ["id"]):
+        direction = dirs[idx] if idx < len(dirs) else "asc"
+        if k == "id":
+            col = Item.id
+        elif k == "sku":
+            col = Item.sku
+        elif k == "name":
+            col = Item.name
+        elif k == "category":
+            col = Item.category
+        elif k == "min_stock":
+            col = Item.min_stock
+        elif k == "balance":
+            col = bal_col
+        else:
+            col = Item.id
+        order_terms.append(col.desc() if direction == "desc" else col.asc())
+    base = base.order_by(*order_terms)
+
+    # pagination
+    base = base.offset((page - 1) * size).limit(size)
+
+    rows = session.exec(base).all()
+    items_page = []
+    for it, bal in rows:
+        bal = bal or 0
+        items_page.append({
             "id": it.id,
             "sku": it.sku,
             "name": it.name,
@@ -145,29 +197,8 @@ def search_inventory(
             "unit": it.unit,
             "min_stock": it.min_stock,
             "balance": bal,
-            "low": low,
+            "low": bal < (it.min_stock or 0),
         })
-    total = len(result)
-    keymap = {
-        "id": lambda x: x["id"],
-        "sku": lambda x: x["sku"] or "",
-        "name": lambda x: x["name"] or "",
-        "category": lambda x: x["category"] or "",
-        "min_stock": lambda x: x["min_stock"],
-        "balance": lambda x: x["balance"],
-    }
-    # support multi-key sort
-    keys = [k.strip() for k in sort_by.split(',') if k.strip()]
-    dirs = [d.strip().lower() for d in sort_dir.split(',') if d.strip()]
-    # Apply stable sorts in reverse order for multi-key
-    for idx in range(len(keys)-1, -1, -1):
-        k = keys[idx] if idx < len(keys) else 'id'
-        d = dirs[idx] if idx < len(dirs) else 'asc'
-        key = keymap.get(k, keymap['id'])
-        result.sort(key=key, reverse=(d=='desc'))
-    start = (page-1)*size
-    end = start + size
-    items_page = result[start:end]
     return {"items": items_page, "total": total, "page": page, "size": size}
 
 
@@ -236,48 +267,64 @@ def export_search_csv(
     encoding: str = Query("utf-8-sig"),
     session: Session = Depends(get_session),
 ):
-    # reuse search handler by calling internal logic (duplicate minimal code for simplicity)
-    stmt = select(Item)
+    from sqlalchemy import func, case
+    from sqlmodel import select
+
+    bal_expr = func.sum(case((StockMovement.type == "IN", StockMovement.qty), (StockMovement.type == "OUT", -StockMovement.qty), else_=StockMovement.qty))
+    bq = select(StockMovement.item_id, bal_expr.label("balance")).group_by(StockMovement.item_id).subquery("b")
+    bal_col = func.coalesce(bq.c.balance, 0)
+
+    base = select(
+        Item.sku, Item.name, Item.category, Item.unit, Item.min_stock, bal_col.label("balance")
+    ).select_from(Item).join(bq, bq.c.item_id == Item.id, isouter=True)
+
     if q:
         like = f"%{q}%"
-        stmt = stmt.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
+        base = base.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
     if category:
-        stmt = stmt.where(Item.category == category)
-    items = session.exec(stmt).all()
-    balances = compute_all_balances(session)
-    rows = []
-    for it in items:
-        bal = balances.get(it.id or 0, 0)
-        if min_balance is not None and bal < min_balance:
-            continue
-        if max_balance is not None and bal > max_balance:
-            continue
-        low = bal < (it.min_stock or 0)
-        if low_only and not low:
-            continue
-        rows.append({
-            "sku": it.sku,
-            "name": it.name,
-            "category": it.category or "",
-            "unit": it.unit,
-            "min_stock": it.min_stock,
-            "balance": bal,
-        })
-    # sort
-    keymap = {
-        "sku": lambda x: x["sku"],
-        "name": lambda x: x["name"],
-        "category": lambda x: x["category"],
-        "unit": lambda x: x["unit"],
-        "min_stock": lambda x: x["min_stock"],
-        "balance": lambda x: x["balance"],
-    }
+        base = base.where(Item.category == category)
+    if min_balance is not None:
+        base = base.where(bal_col >= min_balance)
+    if max_balance is not None:
+        base = base.where(bal_col <= max_balance)
+    if low_only:
+        base = base.where(bal_col < func.coalesce(Item.min_stock, 0))
+
+    # ordering
     keys = [k.strip() for k in sort_by.split(',') if k.strip()]
     dirs = [d.strip().lower() for d in sort_dir.split(',') if d.strip()]
-    for idx in range(len(keys)-1, -1, -1):
-        k = keys[idx] if idx < len(keys) else 'sku'
-        d = dirs[idx] if idx < len(dirs) else 'asc'
-        rows.sort(key=keymap.get(k, keymap['sku']), reverse=(d=='desc'))
+    order_terms = []
+    for idx, k in enumerate(keys or ["sku"]):
+        direction = dirs[idx] if idx < len(dirs) else "asc"
+        if k == "sku":
+            col = Item.sku
+        elif k == "name":
+            col = Item.name
+        elif k == "category":
+            col = Item.category
+        elif k == "unit":
+            col = Item.unit
+        elif k == "min_stock":
+            col = Item.min_stock
+        elif k == "balance":
+            col = bal_col
+        else:
+            col = Item.sku
+        order_terms.append(col.desc() if direction == "desc" else col.asc())
+    base = base.order_by(*order_terms)
+
+    res = session.exec(base).all()
+    rows = [
+        {
+            "sku": sku,
+            "name": name,
+            "category": category or "",
+            "unit": unit,
+            "min_stock": min_stock,
+            "balance": balance or 0,
+        }
+        for (sku, name, category, unit, min_stock, balance) in res
+    ]
 
     from ..io_utils import dicts_to_csv
     content = dicts_to_csv(["sku","name","category","unit","min_stock","balance"], rows, encoding=encoding)

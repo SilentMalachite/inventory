@@ -13,6 +13,7 @@ __pycache__/
 build/
 dist/
 *.spec
+!inventory-app.spec
 *.log
 
 # Vite/Node

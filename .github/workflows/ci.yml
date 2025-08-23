@@ -8,6 +8,7 @@ on:
 
 jobs:
   backend:
+    needs: frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,10 +18,12 @@ jobs:
       - name: Install backend deps
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi "uvicorn[standard]" sqlmodel pydantic-settings openpyxl jinja2 python-multipart httpx pytest
+          pip install fastapi "uvicorn[standard]" sqlmodel openpyxl jinja2 python-multipart httpx pytest
       - name: Run tests
         env:
           PYTHONPATH: src
+          INVENTORY_APP_DIR: ${{ runner.temp }}/inventory-home
+          INVENTORY_AUDIT_DISABLED: '1'
         run: |
           pytest -q
 
