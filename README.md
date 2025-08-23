@@ -1,6 +1,6 @@
 # Inventory System (FastAPI + SQLModel + SQLite + SPA)
 
-在庫管理APIとダッシュボード（SPA）を備えたサンプル実装です。uv でPython環境を管理し、Vite + TypeScript + React でフロントエンドを構築、PyInstaller `onefile` で単一実行ファイルに同梱できます。
+在庫管理APIとダッシュボード（SPA）を備えた在庫管理システム実装です。uv でPython環境を管理し、Vite + TypeScript + React でフロントエンドを構築、PyInstaller `onefile` で単一実行ファイルに同梱できます。
 
 ## 特長
 - FastAPI + SQLModel + SQLite（初回起動時にユーザ領域へ展開）
