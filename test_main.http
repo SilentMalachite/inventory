@@ -1,0 +1,127 @@
+# Test Inventory API endpoints
+
+GET http://127.0.0.1:8000/health
+Accept: application/json
+Accept-Language: ja
+
+###
+
+# Japanese via Accept-Language header
+GET http://127.0.0.1:8000/health
+Accept: application/json
+Accept-Language: ja
+
+###
+
+POST http://127.0.0.1:8000/items/
+Content-Type: application/json
+Accept: application/json
+Accept-Language: ja
+
+{
+  "sku": "SKU-001",
+  "name": "Sample Item",
+  "category": "general",
+  "unit": "pcs",
+  "min_stock": 5
+}
+
+###
+
+GET http://127.0.0.1:8000/items/
+Accept: application/json
+Accept-Language: ja
+
+###
+
+# Get item by id
+GET http://127.0.0.1:8000/items/1
+Accept: application/json
+Accept-Language: ja
+
+###
+
+# Update item
+PUT http://127.0.0.1:8000/items/1
+Content-Type: application/json
+Accept: application/json
+Accept-Language: ja
+
+{
+  "min_stock": 10
+}
+
+###
+
+# Stock IN
+POST http://127.0.0.1:8000/stock/in
+Content-Type: application/json
+Accept: application/json
+Accept-Language: ja
+
+{
+  "item_id": 1,
+  "qty": 5,
+  "ref": "initial"
+}
+
+###
+
+# Stock OUT
+POST http://127.0.0.1:8000/stock/out
+Content-Type: application/json
+Accept: application/json
+Accept-Language: ja
+
+{
+  "item_id": 1,
+  "qty": 2
+}
+
+###
+
+# Stock ADJUST
+POST http://127.0.0.1:8000/stock/adjust
+Content-Type: application/json
+Accept: application/json
+Accept-Language: ja
+
+{
+  "item_id": 1,
+  "qty": -1,
+  "ref": "cycle count"
+}
+
+###
+
+# Delete item
+DELETE http://127.0.0.1:8000/items/1
+Accept: application/json
+Accept-Language: ja
+
+###
+
+# Balances
+GET http://127.0.0.1:8000/stock/balance/1
+Accept: application/json
+Accept-Language: ja
+
+###
+
+GET http://127.0.0.1:8000/stock/balances
+Accept: application/json
+Accept-Language: ja
+
+###
+
+# Export items CSV (UTF-8 BOM default)
+GET http://127.0.0.1:8000/items/export/csv
+Accept: text/csv
+
+###
+
+# Export items Excel
+GET http://127.0.0.1:8000/items/export/xlsx
+Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+###

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# macOS
+.DS_Store
+
+# Build
+build/
+dist/
+*.spec
+*.log
+
+# Vite/Node
+node_modules/
+frontend/node_modules/
+frontend/.vite/
+frontend/dist/
+
+# Vite build output served by FastAPI (generated)
+src/app/public/
+
+# IDE
+.idea/
+.vscode/

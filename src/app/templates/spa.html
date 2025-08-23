@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>在庫ダッシュボード（SPA）</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    #app{padding:16px}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .card{margin-bottom:16px}
+  </style>
+  <!-- React 18 UMD from CDN (for offline, vendor these into /static/spa/vendor) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="/static/spa/app.js"></script>
+</body>
+</html>
+

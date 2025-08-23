@@ -1,0 +1,18 @@
+{
+  "status": {
+    "ok": "ok"
+  },
+  "errors": {
+    "validation_failed": "Invalid input",
+    "item_not_found": "Item not found",
+    "duplicate_sku": "SKU already exists"
+  },
+  "docs": {
+    "title": "Inventory System (SQLite bundled)",
+    "description": "Simple inventory API with FastAPI + SQLModel + SQLite",
+    "tags": {
+      "items": "Items management",
+      "stock": "Stock movements"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+[project]
+name = "inventory"
+version = "0.1.0"
+description = "Inventory API (FastAPI + SQLModel + SQLite)"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "sqlmodel>=0.0.19",
+    "pydantic-settings>=2.4.0",
+    "openpyxl>=3.1.2",
+    "jinja2>=3.1.4",
+    "python-multipart>=0.0.9",
+]

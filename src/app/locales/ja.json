@@ -1,0 +1,18 @@
+{
+  "status": {
+    "ok": "正常"
+  },
+  "errors": {
+    "validation_failed": "入力値が不正です",
+    "item_not_found": "対象の商品が見つかりません",
+    "duplicate_sku": "このSKUは既に存在します"
+  },
+  "docs": {
+    "title": "在庫管理システム（SQLite同梱）",
+    "description": "FastAPI + SQLModel + SQLite によるシンプルな在庫管理API",
+    "tags": {
+      "items": "商品管理",
+      "stock": "在庫移動"
+    }
+  }
+}

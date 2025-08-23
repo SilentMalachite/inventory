@@ -1,0 +1,22 @@
+# Project Overview
+
+- Purpose: Inventory management API with FastAPI + SQLModel + SQLite, packaged with PyInstaller onefile. Japanese is the default language; i18n supports JA/EN.
+- Tech stack: Python >= 3.10, FastAPI, Uvicorn, SQLModel, SQLite (bundled seed), custom i18n middleware (locales JSON), simple audit logging.
+- Structure (src layout):
+  - src/app/main.py (FastAPI app, routers mount, /health, validation handler, access log middleware)
+  - src/app/db.py (SQLite path + engine, seed copy, session/metadata init)
+  - src/app/models.py (Item, StockMovement; field descriptions in JA)
+  - src/app/schemas.py (ItemCreate/Update, StockIn/Out/Adjust)
+  - src/app/services/inventory.py (balance calculators)
+  - src/app/routers/items.py (CRUD + audit)
+  - src/app/routers/stock.py (in/out/adjust, balance endpoints + audit)
+  - src/app/i18n.py (LocaleMiddleware, translation utilities, locales loader)
+  - src/app/locales/{ja,en}.json (strings)
+  - src/app/audit.py (JSONL rotating file logger to ~/.inventory-system/app.log)
+  - src/app/assets/seed.db (empty seed; tables created on startup)
+  - src/app/__main__.py (python -m app entry)
+- Entry points:
+  - ASGI: `app.main:app`
+  - Module: `python -m app`
+- Packaging: PyInstaller onefile with `--add-data src/app/assets/seed.db:app/assets` (per AGENT.md).
+- Notes: default language is JA; Accept-Language header or `?lang=` overrides; Content-Language header present.

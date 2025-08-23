@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<section class="row">
+  <div class="card">
+    <h2>在庫状況</h2>
+    {% if request.query_params.get('msg') %}
+      <div class="notice">{{ request.query_params.get('msg') }}</div>
+    {% endif %}
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>SKU</th>
+          <th>商品名</th>
+          <th>カテゴリ</th>
+          <th>現在庫</th>
+          <th>最低在庫</th>
+          <th>単位</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr class="{% if it.low %}low{% endif %}">
+          <td>{{ it.id }}</td>
+          <td>{{ it.sku }}</td>
+          <td>{{ it.name }}</td>
+          <td>{{ it.category or '' }}</td>
+          <td class="num">{{ it.balance }}</td>
+          <td class="num">{{ it.min_stock }}</td>
+          <td>{{ it.unit }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>商品登録</h2>
+    <form method="post" action="/web/items" accept-charset="UTF-8">
+      <div class="grid">
+        <label>SKU<input name="sku" required /></label>
+        <label>商品名<input name="name" required /></label>
+        <label>カテゴリ<input name="category" /></label>
+        <label>単位<input name="unit" value="pcs" /></label>
+        <label>最低在庫<input name="min_stock" type="number" step="1" min="0" value="0" /></label>
+      </div>
+      <div class="actions"><button type="submit">登録</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>入出庫 / 調整</h2>
+    <form method="post" action="/web/stock/in" accept-charset="UTF-8">
+      <div class="grid">
+        <label>商品ID<input name="item_id" type="number" required /></label>
+        <label>数量<input name="qty" type="number" required /></label>
+        <label>参照<input name="ref" /></label>
+      </div>
+      <div class="actions">
+        <button type="submit">入庫</button>
+      </div>
+    </form>
+    <form method="post" action="/web/stock/out" accept-charset="UTF-8">
+      <div class="grid">
+        <label>商品ID<input name="item_id" type="number" required /></label>
+        <label>数量<input name="qty" type="number" required /></label>
+        <label>参照<input name="ref" /></label>
+      </div>
+      <div class="actions">
+        <button type="submit">出庫</button>
+      </div>
+    </form>
+    <form method="post" action="/web/stock/adjust" accept-charset="UTF-8">
+      <div class="grid">
+        <label>商品ID<input name="item_id" type="number" required /></label>
+        <label>調整数<input name="qty" type="number" required /></label>
+        <label>参照<input name="ref" /></label>
+      </div>
+      <div class="actions">
+        <button type="submit">在庫調整</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% endblock %}
+
