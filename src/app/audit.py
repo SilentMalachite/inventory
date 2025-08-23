@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+import sys
 from pathlib import Path
 from typing import Any, Dict
 import os
@@ -29,7 +30,10 @@ def get_logger() -> logging.Logger:
     try:
         logger = logging.getLogger("inventory.audit")
         logger.setLevel(logging.INFO)
-        handler = RotatingFileHandler(LOG_PATH, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        if os.environ.get("INVENTORY_AUDIT_STDOUT", "").lower() in ("1", "true", "yes"):
+            handler = logging.StreamHandler(sys.stdout)
+        else:
+            handler = RotatingFileHandler(LOG_PATH, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
         handler.setFormatter(logging.Formatter("%(message)s"))
         logger.addHandler(handler)
         _logger = logger

@@ -13,6 +13,7 @@ from ..db import get_session
 from ..i18n import get_translator, Translator
 from ..models import Item, StockMovement
 from ..services.inventory import compute_all_balances
+from ..security import get_csrf_token, validate_csrf_or_400, require_basic_auth
 
 
 templates = Jinja2Templates(directory=str(ir.files("app").joinpath("templates")))
@@ -38,7 +39,7 @@ def index(request: Request, session: Session = Depends(get_session)):
             "balance": bal,
             "low": bal < (it.min_stock or 0),
         })
-    return templates.TemplateResponse("index.html", {"request": request, "items": rows})
+    return templates.TemplateResponse("index.html", {"request": request, "items": rows, "csrf_token": get_csrf_token(request)})
 
 
 @router.get("/ui")
@@ -54,9 +55,12 @@ def create_item(
     category: Optional[str] = Form(None),
     unit: str = Form("pcs"),
     min_stock: int = Form(0),
+    csrf_token: str = Form(...),
     session: Session = Depends(get_session),
     t: Translator = Depends(get_translator),
+    _: None = Depends(require_basic_auth),
 ):
+    validate_csrf_or_400(request, csrf_token)
     try:
         obj = Item(sku=sku.strip(), name=name.strip(), category=category or None, unit=unit.strip() or "pcs", min_stock=min_stock)
         session.add(obj)
@@ -74,7 +78,8 @@ def _movement(session: Session, item_id: int, qty: int, ref: Optional[str], kind
 
 
 @router.post("/web/stock/in")
-def stock_in(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), session: Session = Depends(get_session)):
+def stock_in(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), request: Request = None, session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
+    validate_csrf_or_400(request, csrf_token)
     if not session.get(Item, item_id):
         raise HTTPException(404, "対象の商品が見つかりません")
     _movement(session, item_id, qty, ref, "IN")
@@ -82,7 +87,8 @@ def stock_in(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] 
 
 
 @router.post("/web/stock/out")
-def stock_out(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), session: Session = Depends(get_session)):
+def stock_out(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), request: Request = None, session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
+    validate_csrf_or_400(request, csrf_token)
     if not session.get(Item, item_id):
         raise HTTPException(404, "対象の商品が見つかりません")
     _movement(session, item_id, qty, ref, "OUT")
@@ -90,7 +96,8 @@ def stock_out(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str]
 
 
 @router.post("/web/stock/adjust")
-def stock_adjust(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), session: Session = Depends(get_session)):
+def stock_adjust(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), request: Request = None, session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
+    validate_csrf_or_400(request, csrf_token)
     if not session.get(Item, item_id):
         raise HTTPException(404, "対象の商品が見つかりません")
     if qty == 0:

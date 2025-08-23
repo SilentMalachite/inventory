@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
 from datetime import datetime
 import io
 from sqlmodel import Session, select
@@ -45,8 +46,9 @@ def create_item(
     summary="商品一覧を取得",
     description="登録済みの商品をすべて返します。",
 )
-def list_items(session: Session = Depends(get_session)):
-    return session.exec(select(Item)).all()
+def list_items(page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=200), session: Session = Depends(get_session)):
+    stmt = select(Item).offset((page - 1) * size).limit(size)
+    return session.exec(stmt).all()
 
 
 @router.get(
@@ -210,26 +212,30 @@ async def import_items_csv(
 ):
     data = await file.read()
     try:
-        rows = parse_items_csv(data, encoding=encoding)
+        rows = await run_in_threadpool(parse_items_csv, data, encoding)
     except Exception as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})
     inserted = 0
     updated = 0
-    for r in rows:
-        sku = r["sku"]
-        if not sku or not r["name"]:
-            continue
-        existing = session.exec(select(Item).where(Item.sku == sku)).first()
-        if existing:
-            for k in ("name", "category", "unit", "min_stock"):
-                setattr(existing, k, r[k])
-            session.add(existing)
-            updated += 1
-        else:
-            obj = Item(**r)
-            session.add(obj)
-            inserted += 1
-    session.commit()
+    # DB-heavy loop in threadpool to avoid blocking event loop
+    def _upsert_rows():
+        nonlocal inserted, updated
+        for r in rows:
+            sku = r["sku"]
+            if not sku or not r["name"]:
+                continue
+            existing = session.exec(select(Item).where(Item.sku == sku)).first()
+            if existing:
+                for k in ("name", "category", "unit", "min_stock"):
+                    setattr(existing, k, r[k])
+                session.add(existing)
+                updated += 1
+            else:
+                obj = Item(**r)
+                session.add(obj)
+                inserted += 1
+        session.commit()
+    await run_in_threadpool(_upsert_rows)
     audit("item.import.csv", inserted=inserted, updated=updated)
     return {"inserted": inserted, "updated": updated}
 
@@ -246,25 +252,28 @@ async def import_items_xlsx(
 ):
     data = await file.read()
     try:
-        rows = parse_items_xlsx(data)
+        rows = await run_in_threadpool(parse_items_xlsx, data)
     except Exception as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})
     inserted = 0
     updated = 0
-    for r in rows:
-        sku = r["sku"]
-        if not sku or not r["name"]:
-            continue
-        existing = session.exec(select(Item).where(Item.sku == sku)).first()
-        if existing:
-            for k in ("name", "category", "unit", "min_stock"):
-                setattr(existing, k, r[k])
-            session.add(existing)
-            updated += 1
-        else:
-            obj = Item(**r)
-            session.add(obj)
-            inserted += 1
-    session.commit()
+    def _upsert_rows():
+        nonlocal inserted, updated
+        for r in rows:
+            sku = r["sku"]
+            if not sku or not r["name"]:
+                continue
+            existing = session.exec(select(Item).where(Item.sku == sku)).first()
+            if existing:
+                for k in ("name", "category", "unit", "min_stock"):
+                    setattr(existing, k, r[k])
+                session.add(existing)
+                updated += 1
+            else:
+                obj = Item(**r)
+                session.add(obj)
+                inserted += 1
+        session.commit()
+    await run_in_threadpool(_upsert_rows)
     audit("item.import.xlsx", inserted=inserted, updated=updated)
     return {"inserted": inserted, "updated": updated}

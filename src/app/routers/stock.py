@@ -157,7 +157,7 @@ def search_inventory(
         count_stmt = count_stmt.where(bal_col <= max_balance)
     if low_only:
         count_stmt = count_stmt.where(bal_col < func.coalesce(Item.min_stock, 0))
-    total = session.exec(count_stmt).one()
+    total = session.exec(count_stmt).scalar_one()
 
     # ordering
     keys = [k.strip() for k in sort_by.split(',') if k.strip()]

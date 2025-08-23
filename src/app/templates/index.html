@@ -38,6 +38,7 @@
   <div class="card">
     <h2>商品登録</h2>
     <form method="post" action="/web/items" accept-charset="UTF-8">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <div class="grid">
         <label>SKU<input name="sku" required /></label>
         <label>商品名<input name="name" required /></label>
@@ -52,6 +53,7 @@
   <div class="card">
     <h2>入出庫 / 調整</h2>
     <form method="post" action="/web/stock/in" accept-charset="UTF-8">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <div class="grid">
         <label>商品ID<input name="item_id" type="number" required /></label>
         <label>数量<input name="qty" type="number" required /></label>
@@ -62,6 +64,7 @@
       </div>
     </form>
     <form method="post" action="/web/stock/out" accept-charset="UTF-8">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <div class="grid">
         <label>商品ID<input name="item_id" type="number" required /></label>
         <label>数量<input name="qty" type="number" required /></label>
@@ -72,6 +75,7 @@
       </div>
     </form>
     <form method="post" action="/web/stock/adjust" accept-charset="UTF-8">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <div class="grid">
         <label>商品ID<input name="item_id" type="number" required /></label>
         <label>調整数<input name="qty" type="number" required /></label>
