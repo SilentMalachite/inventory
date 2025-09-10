@@ -38,6 +38,10 @@ jobs:
           npm run build
       - name: Build onefile
         run: |
+          # Fix PyInstaller spec compatibility for older tags (Tree(...).datas -> Tree(...))
+          if grep -q "Tree(.*)\.datas" inventory-app.spec; then
+            sed -E -i.bak 's/Tree\(([^)]*)\)\.datas/Tree(\1)/g' inventory-app.spec || true
+          fi
           pyinstaller inventory-app.spec
       - name: Attach artifacts to GitHub Release (manual)
         uses: softprops/action-gh-release@v2
@@ -47,4 +51,3 @@ jobs:
             dist/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
