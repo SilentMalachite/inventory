@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.1 - 2025-09-10
+- FastAPI の `on_event` を廃止し、`lifespan` に移行（非推奨警告を解消）
+- Pydantic v2 の Generics へ移行（`GenericModel` → `BaseModel + Generic[T]`）
+- SQLite の保存先解決を堅牢化（ENV/ホーム不可時は CWD の `.inventory-system` に自動フォールバック）
+- 監査ログの保存先解決も同様に堅牢化（書き込み不可環境でのエラー回避）
+- `StockMovement` の属性参照ミス修正（`metadata` → `meta`）および数量の型正規化
+- 運用ドキュメント強化（`README.md`）、`.env.example` を追加
+
 ## v0.1.0
 - 初回リリース（在庫管理API + SQLite同梱）
 - i18n（日本語既定）、監査ログ

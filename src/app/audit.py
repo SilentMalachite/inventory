@@ -9,8 +9,27 @@ from typing import Any, Dict
 import os
 
 
-APP_DIR = Path(os.environ.get("INVENTORY_APP_DIR", Path.home() / ".inventory-system"))
-APP_DIR.mkdir(parents=True, exist_ok=True)
+def _resolve_app_dir() -> Path:
+    env_dir = os.environ.get("INVENTORY_APP_DIR")
+    if env_dir:
+        p = Path(env_dir).expanduser()
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        except Exception:
+            pass
+    try:
+        p = Path.home() / ".inventory-system"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    except Exception:
+        pass
+    p = Path.cwd() / ".inventory-system"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+APP_DIR = _resolve_app_dir()
 LOG_PATH = APP_DIR / "app.log"
 
 

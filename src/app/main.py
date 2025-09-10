@@ -5,6 +5,7 @@ from starlette.staticfiles import StaticFiles
 from importlib import resources as ir
 from starlette.middleware.sessions import SessionMiddleware
 import os
+from contextlib import asynccontextmanager
 
 from .db import init_db, migrate_if_requested
 from .routers import items, stock, web
@@ -14,6 +15,22 @@ from .security import require_api_key
 
 # OpenAPI は起動時に固定値が必要なため、既定言語(ja)のロケールから埋め込む
 load_translations()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    init_db()
+    migrate_if_requested()
+    load_translations()
+    audit("app.start")
+    try:
+        yield
+    finally:
+        # shutdown
+        audit("app.stop")
+
+
 app = FastAPI(
     title=translate(DEFAULT_LANG, "docs.title"),
     description=translate(DEFAULT_LANG, "docs.description"),
@@ -21,6 +38,7 @@ app = FastAPI(
         {"name": "items", "description": translate(DEFAULT_LANG, "docs.tags.items")},
         {"name": "stock", "description": translate(DEFAULT_LANG, "docs.tags.stock")},
     ],
+    lifespan=lifespan,
 )
 app.add_middleware(LocaleMiddleware)
 app.add_middleware(
@@ -38,16 +56,7 @@ app.mount(
     StaticFiles(directory=str(ir.files("app").joinpath("public")), html=True, check_dir=False),
     name="spa",
 )
-
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    migrate_if_requested()
-    load_translations()
-    audit("app.start")
-
-
+    
 @app.get("/health")
 def health(t: Translator = Depends(get_translator)):
     return {"status": t("status.ok")}
