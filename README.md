@@ -42,6 +42,13 @@
 - `INVENTORY_AUDIT_DISABLED`: `1/true` で監査ログを無効化（CI/テスト向け）。ファイルオープン失敗時も自動的に無効化へフォールバックします。
 - `INVENTORY_MIGRATE`: `1/true` で起動時にSQLite向けの軽量マイグレーション（`StockMovement.type` の CHECK 制約追加）を試行します。既存DBに適用する際はバックアップ推奨。
 
+### 運用のおすすめ設定
+- DB/ログ格納先は書き込み可能な専用ディレクトリに設定（例: `/var/lib/inventory`）。`.env.example` を参考に環境変数を用意してください。
+- APIは `INVENTORY_API_KEY` を設定し、クライアントは `X-API-Key` ヘッダで送信してください。Webフォームは Basic 認証（`INVENTORY_BASIC_USER/PASS`）の併用を推奨。
+- SQLiteはプロセス内同時実行に強くないため、Uvicornワーカーは1プロセス（`--workers 1`）推奨。高負荷時はPostgreSQL等への移行を検討。
+- CI/テストでは `INVENTORY_AUDIT_DISABLED=1` を有効化し、副作用を抑止。
+- 既存DBに制約/列を追加する場合のみ `INVENTORY_MIGRATE=1` を一時的に有効化。
+
 ## 主なエンドポイント
 - ヘルス: `GET /health`
 - 商品: `POST/GET/PUT/DELETE /items`, `GET /items/{id}`, `GET /items/categories`, `POST /items/categories/rename`, `POST /items/categories/delete`
