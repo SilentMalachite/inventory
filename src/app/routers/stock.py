@@ -1,108 +1,210 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
-from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from fastapi.responses import StreamingResponse, JSONResponse
+from datetime import datetime, UTC
 import io
-from sqlmodel import Session
+from typing import Optional, List, Dict, Any
+
+from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Item, StockMovement
 from ..i18n import get_translator, Translator
-from ..schemas import StockIn, StockOut, StockAdjust
-from ..services.inventory import compute_item_balance, compute_all_balances, compute_balances_for_items
+from ..schemas import (
+    StockIn,
+    StockOut,
+    StockAdjust,
+    StockResponse,
+    ErrorResponse,
+)
+from ..models import Item, StockMovement
+from ..services.stock_service import StockService
 from ..audit import audit
-from sqlmodel import select
+from ..exceptions import handle_api_errors
+from ..services.inventory import compute_all_balances
 
 router = APIRouter()
 
 
 @router.post(
     "/in",
-    response_model=StockMovement,
-    status_code=201,
+    response_model=StockResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="入庫を登録",
     description="指定した商品に対する入庫を記録します。",
+    responses={
+        404: {"model": ErrorResponse, "description": "商品が見つからない場合"},
+        409: {"model": ErrorResponse, "description": "楽観的ロックの競合が発生した場合"},
+        400: {"model": ErrorResponse, "description": "バリデーションエラー"},
+    }
 )
+@handle_api_errors
 def stock_in(
     payload: StockIn,
     session: Session = Depends(get_session),
     t: Translator = Depends(get_translator),
 ):
-    item = session.get(Item, payload.item_id)
-    if not item:
-        raise HTTPException(404, t("errors.item_not_found"))
-    m = StockMovement(item_id=payload.item_id, type="IN", qty=payload.qty, ref=payload.ref)
-    session.add(m)
-    session.commit()
-    session.refresh(m)
-    audit("stock.in", item_id=payload.item_id, qty=payload.qty, ref=payload.ref)
-    return m
+    """在庫入庫を記録します。
+    
+    Args:
+        payload: 入庫情報
+        session: データベースセッション
+        t: 翻訳関数
+        
+    Returns:
+        BaseResponse[StockResponse]: 登録された在庫移動情報
+    """
+    stock_service = StockService(session)
+    result = stock_service.stock_in(payload)
+    
+    # 監査ログ
+    audit(
+        "stock.in",
+        item_id=payload.item_id,
+        qty=payload.qty,
+        ref=payload.ref,
+        version=result["version"]
+    )
+    
+    return result
 
 
 @router.post(
     "/out",
-    response_model=StockMovement,
-    status_code=201,
+    response_model=StockResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="出庫を登録",
-    description="指定した商品に対する出庫を記録します。",
+    description="指定した商品に対する出庫を記録します。在庫が不足している場合はエラーになります。",
+    responses={
+        404: {"model": ErrorResponse, "description": "商品が見つからない場合"},
+        400: {"model": ErrorResponse, "description": "在庫が不足している場合"},
+        409: {"model": ErrorResponse, "description": "楽観的ロックの競合が発生した場合"},
+    }
 )
+@handle_api_errors
 def stock_out(
     payload: StockOut,
     session: Session = Depends(get_session),
     t: Translator = Depends(get_translator),
 ):
-    item = session.get(Item, payload.item_id)
-    if not item:
-        raise HTTPException(404, t("errors.item_not_found"))
-    m = StockMovement(item_id=payload.item_id, type="OUT", qty=payload.qty, ref=payload.ref)
-    session.add(m)
-    session.commit()
-    session.refresh(m)
-    audit("stock.out", item_id=payload.item_id, qty=payload.qty, ref=payload.ref)
-    return m
+    """在庫出庫を記録します。
+    
+    Args:
+        payload: 出庫情報
+        session: データベースセッション
+        t: 翻訳関数
+        
+    Returns:
+        BaseResponse[StockResponse]: 登録された在庫移動情報
+        
+    Raises:
+        HTTPException: 商品が見つからない場合、在庫不足、または楽観的ロックエラーが発生した場合
+    """
+    stock_service = StockService(session)
+    result = stock_service.stock_out(payload)
+    
+    # 監査ログ
+    audit(
+        "stock.out",
+        item_id=payload.item_id,
+        qty=payload.qty,
+        ref=payload.ref,
+        version=result["version"]
+    )
+    
+    return result
 
 
 @router.post(
     "/adjust",
-    response_model=StockMovement,
-    status_code=201,
+    response_model=StockResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="在庫調整を登録",
     description="実在庫との差異を調整として記録します（正負可、0不可）。",
+    responses={
+        404: {"model": ErrorResponse, "description": "商品が見つからない場合"},
+        400: {"model": ErrorResponse, "description": "調整数量が0の場合"},
+        409: {"model": ErrorResponse, "description": "楽観的ロックの競合が発生した場合"},
+    }
 )
+@handle_api_errors
 def stock_adjust(
     payload: StockAdjust,
     session: Session = Depends(get_session),
     t: Translator = Depends(get_translator),
 ):
-    item = session.get(Item, payload.item_id)
-    if not item:
-        raise HTTPException(404, t("errors.item_not_found"))
-    m = StockMovement(item_id=payload.item_id, type="ADJUST", qty=payload.qty, ref=payload.ref)
-    session.add(m)
-    session.commit()
-    session.refresh(m)
-    audit("stock.adjust", item_id=payload.item_id, qty=payload.qty, ref=payload.ref)
-    return m
+    """在庫調整を記録します。
+    
+    Args:
+        payload: 調整情報
+        session: データベースセッション
+        t: 翻訳関数
+        
+    Returns:
+        BaseResponse[StockResponse]: 登録された在庫調整情報
+    """
+    stock_service = StockService(session)
+    result = stock_service.adjust_stock(payload)
+    
+    # 監査ログ
+    audit(
+        "stock.adjust",
+        item_id=payload.item_id,
+        qty=payload.qty,
+        ref=payload.ref,
+        version=result["version"],
+        metadata={"previous_balance": result.get("previous_balance")}
+    )
+    
+    return result
 
 
 @router.get(
     "/balance/{item_id}",
     summary="在庫残高を取得",
-    description="指定した商品の現在の在庫数（入庫-出庫±調整の合計）を返します。",
+    description="指定した商品の現在の在庫数と在庫ステータスを取得します。",
+    responses={
+        404: {"model": ErrorResponse, "description": "商品が見つからない場合"}
+    }
 )
-def get_balance(item_id: int, session: Session = Depends(get_session), t: Translator = Depends(get_translator)):
-    item = session.get(Item, item_id)
-    if not item:
-        raise HTTPException(404, t("errors.item_not_found"))
-    return {"item_id": item_id, "balance": compute_item_balance(session, item_id)}
+@handle_api_errors
+def get_balance(
+    item_id: int,
+    session: Session = Depends(get_session),
+    t: Translator = Depends(get_translator)
+):
+    """指定した商品の在庫残高を取得します。
+    
+    Args:
+        item_id: 商品ID
+        session: データベースセッション
+        t: 翻訳関数
+        
+    Returns:
+        BaseResponse[StockBalanceResponse]: 在庫残高情報
+    """
+    stock_service = StockService(session)
+    balance_info = stock_service.get_stock_balance(item_id)
+    return balance_info
 
 
 @router.get(
     "/balances",
-    summary="全商品の在庫残高を取得",
-    description="全商品の現在在庫数を item_id をキーに返します。",
+    summary="全商品の在庫残高一覧を取得",
+    description="登録されている全商品の在庫残高を返します。",
 )
-def get_all_balances(session: Session = Depends(get_session)):
-    return compute_all_balances(session)
+@handle_api_errors
+async def get_all_balances(
+    session: Session = Depends(get_session)
+):
+    """全商品の在庫残高を取得します。
+    
+    Args:
+        session: データベースセッション
+        
+    Returns:
+        BaseResponse[List[Dict[str, Any]]]: 全商品の在庫残高リスト
+    """
+    balances = compute_all_balances(session)
+    return [{"item_id": k, "balance": v} for k, v in balances.items()]
 
 
 @router.get(
@@ -219,7 +321,7 @@ def stock_trend(
     from datetime import datetime, timedelta
     from collections import defaultdict
 
-    end = datetime.utcnow().date()
+    end = datetime.now(UTC).date()
     start = end - timedelta(days=days-1)
 
     # Movements up to end date
@@ -328,7 +430,7 @@ def export_search_csv(
 
     from ..io_utils import dicts_to_csv
     content = dicts_to_csv(["sku","name","category","unit","min_stock","balance"], rows, encoding=encoding)
-    filename = f"items_search_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"items_search_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.csv"
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
     media = f"text/csv; charset={encoding}"
     return StreamingResponse(io.BytesIO(content), media_type=media, headers=headers)

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
-from datetime import datetime
+from datetime import datetime, UTC
 import io
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
@@ -82,8 +82,7 @@ def update_item(
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
     # update timestamp
-    from datetime import datetime as _dt
-    item.updated_at = _dt.utcnow()
+    item.updated_at = datetime.now(UTC)
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -172,7 +171,7 @@ def export_items_csv(
 ):
     items = session.exec(select(Item)).all()
     content = items_to_csv(items, encoding=encoding)
-    filename = f"items_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"items_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.csv"
     headers = {
         "Content-Disposition": f"attachment; filename={filename}",
     }
@@ -188,7 +187,7 @@ def export_items_csv(
 def export_items_xlsx(session: Session = Depends(get_session)):
     items = session.exec(select(Item)).all()
     content = items_to_xlsx(items)
-    filename = f"items_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"items_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.xlsx"
     headers = {
         "Content-Disposition": f"attachment; filename={filename}",
     }
