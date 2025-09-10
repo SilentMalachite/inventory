@@ -27,12 +27,12 @@ a = Analysis(
 )
 
 # 追加データ（ディレクトリ）
-a.datas += Tree('src/app/templates', prefix='app/templates').datas
-a.datas += Tree('src/app/static', prefix='app/static').datas
-a.datas += Tree('src/app/locales', prefix='app/locales').datas
+a.datas += Tree('src/app/templates', prefix='app/templates')
+a.datas += Tree('src/app/static', prefix='app/static')
+a.datas += Tree('src/app/locales', prefix='app/locales')
 # SPA ビルド（存在しない場合はスキップ）
 if os.path.isdir('src/app/public'):
-    a.datas += Tree('src/app/public', prefix='app/public').datas
+    a.datas += Tree('src/app/public', prefix='app/public')
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
