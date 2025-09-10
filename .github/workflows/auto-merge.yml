@@ -1,0 +1,40 @@
+name: Auto Merge PRs
+
+on:
+  pull_request_target:
+    types: [labeled, opened, reopened, synchronize, ready_for_review]
+  check_suite:
+    types: [completed]
+  check_run:
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      contains(join(fromJSON(toJSON(github.event.pull_request.labels)).*.name, ','), 'automerge')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-merge when ready (label=automerge)
+        uses: peter-evans/auto-merge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: merge
+          delete-branch: true
+          squash-commit-title: pull-request-title
+          squash-commit-message: pull-request-description
+          require-pass: true
+          labels: automerge
+          # オプション: 最低承認者数（ブランチ保護が無い場合のガード）
+          minimum-approvals: 1
+
