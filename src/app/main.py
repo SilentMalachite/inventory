@@ -5,6 +5,7 @@ from starlette.staticfiles import StaticFiles
 from importlib import resources as ir
 from starlette.middleware.sessions import SessionMiddleware
 import os
+import secrets
 from contextlib import asynccontextmanager
 
 from .db import init_db, migrate_if_requested
@@ -43,8 +44,8 @@ app = FastAPI(
 app.add_middleware(LocaleMiddleware)
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("INVENTORY_SECRET_KEY", "dev-secret-key"),
-    same_site="lax",
+    secret_key=os.environ.get("INVENTORY_SECRET_KEY") or secrets.token_urlsafe(32),
+    same_site="strict",
 )
 
 # Static files for Web UI
@@ -106,8 +107,8 @@ async def access_log(request: Request, call_next):
             status=response.status_code,
             lang=getattr(request.state, "lang", "ja"),
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to log access: {e}")
     return response
 
 

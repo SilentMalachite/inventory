@@ -78,7 +78,7 @@ def _movement(session: Session, item_id: int, qty: int, ref: Optional[str], kind
 
 
 @router.post("/web/stock/in")
-def stock_in(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), request: Request = None, session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
+def stock_in(request: Request, item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
     validate_csrf_or_400(request, csrf_token)
     if not session.get(Item, item_id):
         raise HTTPException(404, "対象の商品が見つかりません")
@@ -87,7 +87,7 @@ def stock_in(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] 
 
 
 @router.post("/web/stock/out")
-def stock_out(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), request: Request = None, session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
+def stock_out(request: Request, item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
     validate_csrf_or_400(request, csrf_token)
     if not session.get(Item, item_id):
         raise HTTPException(404, "対象の商品が見つかりません")
@@ -96,7 +96,7 @@ def stock_out(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str]
 
 
 @router.post("/web/stock/adjust")
-def stock_adjust(item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), request: Request = None, session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
+def stock_adjust(request: Request, item_id: int = Form(...), qty: int = Form(...), ref: Optional[str] = Form(None), csrf_token: str = Form(...), session: Session = Depends(get_session), _: None = Depends(require_basic_auth)):
     validate_csrf_or_400(request, csrf_token)
     if not session.get(Item, item_id):
         raise HTTPException(404, "対象の商品が見つかりません")
