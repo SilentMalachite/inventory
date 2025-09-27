@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0653fcef-5a30-40b8-982a-7782f0969ebe" name="変更" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/inventory.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inventory.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/routers/items.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/routers/items.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/routers/stock.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/routers/stock.py" afterDir="false" />
-    </list>
+    <list default="true" id="0653fcef-5a30-40b8-982a-7782f0969ebe" name="変更" comment="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -28,6 +21,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "SilentMalachite"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/SilentMalachite/inventory.git",
+    "accountId": "ce2e0e87-8e80-4211-9426-576b6efb0ac8"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6
 }</component>
@@ -91,11 +96,35 @@
       <workItem from="1757625973716" duration="142000" />
       <workItem from="1758430159286" duration="57000" />
       <workItem from="1758430228680" duration="128000" />
-      <workItem from="1758430367552" duration="223000" />
+      <workItem from="1758430367552" duration="310000" />
     </task>
+    <task id="LOCAL-00001" summary="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags">
+      <option name="closed" value="true" />
+      <created>1758430607053</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1758430607053</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags" />
+    <option name="LAST_COMMIT_MESSAGE" value="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags" />
   </component>
 </project>

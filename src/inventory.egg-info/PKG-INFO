@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: inventory
+Version: 0.1.0
+Summary: Inventory API (FastAPI + SQLModel + SQLite)
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: fastapi>=0.111.0
+Requires-Dist: uvicorn[standard]>=0.29.0
+Requires-Dist: sqlmodel>=0.0.19
+Requires-Dist: openpyxl>=3.1.2
+Requires-Dist: jinja2>=3.1.4
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: itsdangerous>=2.1.2
+Dynamic: license-file
