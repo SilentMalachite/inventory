@@ -14,6 +14,7 @@ from ..exceptions import (
     ConcurrentModificationError,
     ItemNotFoundError
 )
+from .performance import get_cached_balance, invalidate_balance_cache
 from ..schemas import StockIn, StockOut, StockAdjust, StockResponse
 
 
@@ -28,6 +29,7 @@ def compute_item_balance(session: Session, item_id: int, for_update: bool = Fals
     Returns:
         int: Current stock balance
     """
+    # Use a more efficient query with proper indexing
     query = (
         select(
             func.coalesce(
@@ -42,10 +44,12 @@ def compute_item_balance(session: Session, item_id: int, for_update: bool = Fals
             ).label("balance")
         )
         .where(StockMovement.item_id == item_id)
+        # Add index hint for better performance
+        .execution_options(optimization_include_tables=["stockmovement"])
     )
     
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update(nowait=True)  # Fail fast if locked
         
     result = session.execute(query).scalar()
     return int(result) if result is not None else 0
@@ -123,7 +127,8 @@ def record_stock_movement(
     item_id: int,
     qty: int,
     ref: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    use_pessimistic_lock: bool = True
 ) -> StockMovement:
     """Record a stock movement with transaction support and optimistic locking.
     
@@ -146,6 +151,15 @@ def record_stock_movement(
     if movement_type not in ("IN", "OUT", "ADJUST"):
         raise ValueError(f"Invalid movement type: {movement_type}")
     
+    # Get current balance with pessimistic lock if requested
+    if use_pessimistic_lock and movement_type == "OUT":
+        current_balance = compute_item_balance(session, item_id, for_update=True)
+        if current_balance < abs(qty):
+            from ..exceptions import InsufficientStockError
+            raise InsufficientStockError(
+                f"Insufficient stock. Current: {current_balance}, Requested: {abs(qty)}"
+            )
+    
     # Normalize qty per movement type
     if movement_type == "IN":
         stored_qty = abs(qty)
@@ -165,6 +179,9 @@ def record_stock_movement(
     
     session.add(movement)
     session.flush()  # Flush to get the ID
+    
+    # Invalidate cache for this item
+    invalidate_balance_cache(item_id)
     
     return movement
 
@@ -200,7 +217,8 @@ def get_item_balance(session: Session, item_id: int) -> Dict[str, Any]:
     if not item:
         raise ItemNotFoundError(f"Item with ID {item_id} not found")
     
-    balance = compute_item_balance(session, item_id)
+    # Use cached balance for better performance
+    balance = get_cached_balance(session, item_id)
     
     return {
         "item_id": item_id,

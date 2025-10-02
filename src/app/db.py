@@ -55,29 +55,61 @@ if not DB_PATH.exists():
         DB_PATH = fallback / "db.sqlite3"
         DB_PATH.touch(exist_ok=True)
 
+# Configure SQLite for better concurrency
+from .config import get_settings
+settings = get_settings()
+
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False, "timeout": 30},
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 30,
+        "uri": True,  # Enable URI mode for better pragma support
+    },
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_pre_ping=True,  # Check connections before use
+    pool_recycle=settings.db_pool_recycle,
 )
 
 
 @event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):
+    """Configure SQLite for better concurrency and performance."""
     try:
         cursor = dbapi_connection.cursor()
         try:
+            # Enable WAL mode for better concurrency
             cursor.execute("PRAGMA journal_mode=WAL;")
+            # Set synchronous mode for balance between safety and performance
             cursor.execute("PRAGMA synchronous=NORMAL;")
-            cursor.execute("PRAGMA busy_timeout=5000;")
+            # Set busy timeout for concurrent access
+            cursor.execute("PRAGMA busy_timeout=30000;")
+            # Enable foreign key constraints
+            cursor.execute("PRAGMA foreign_keys=ON;")
+            # Optimize for better performance
+            cursor.execute("PRAGMA cache_size=10000;")
+            cursor.execute("PRAGMA temp_store=MEMORY;")
+            cursor.execute("PRAGMA mmap_size=268435456;")  # 256MB
         finally:
             cursor.close()
-    except Exception:
-        # Best effort; ignore if not sqlite or fails
-        pass
+    except Exception as e:
+        # Log warning but don't fail startup
+        import logging
+        logging.warning(f"Failed to set SQLite pragmas: {e}")
 
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
+    
+    # Apply performance optimizations
+    from .services.performance import create_performance_indexes, optimize_database_settings
+    try:
+        optimize_database_settings(engine)
+        create_performance_indexes(engine)
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to apply performance optimizations: {e}")
 
 
 def migrate_if_requested() -> None:

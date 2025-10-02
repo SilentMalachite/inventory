@@ -5,7 +5,14 @@
   "errors": {
     "validation_failed": "Invalid input",
     "item_not_found": "Item not found",
-    "duplicate_sku": "SKU already exists"
+    "duplicate_sku": "SKU already exists",
+    "insufficient_stock": "Insufficient stock",
+    "concurrent_modification": "Resource modified by another process",
+    "database_error": "Database error occurred",
+    "unauthorized": "Authentication failed",
+    "forbidden": "Access forbidden",
+    "not_found": "Resource not found",
+    "internal_error": "Internal server error"
   },
   "docs": {
     "title": "Inventory System (SQLite bundled)",
@@ -14,5 +21,17 @@
       "items": "Items management",
       "stock": "Stock movements"
     }
+  },
+  "stock": {
+    "in": "Stock In",
+    "out": "Stock Out",
+    "adjust": "Adjustment"
+  },
+  "validation": {
+    "field_required": "Field is required",
+    "invalid_integer": "Invalid integer value",
+    "greater_than_zero": "Value must be greater than 0",
+    "greater_equal_zero": "Value must be greater than or equal to 0",
+    "invalid_value": "Invalid value"
   }
 }

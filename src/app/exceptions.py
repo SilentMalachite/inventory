@@ -51,12 +51,31 @@ class DatabaseError(InventoryError):
     detail = "Database operation failed"
 
 
+class AuthenticationError(InventoryError):
+    """Raised when authentication fails"""
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Authentication failed"
+
+
+class AuthorizationError(InventoryError):
+    """Raised when authorization fails"""
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Access forbidden"
+
+
+class ValidationError(InventoryError):
+    """Raised when validation fails"""
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    detail = "Validation failed"
+
+
 def handle_api_errors(func):
     """
     Decorator to handle common API errors and convert them to appropriate HTTP responses.
     """
     from functools import wraps
-    from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+    from sqlalchemy.exc import IntegrityError, SQLAlchemyError, OperationalError
+    from fastapi import HTTPException
     
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -69,10 +88,23 @@ def handle_api_errors(func):
                 raise ItemNotFoundError("The referenced item does not exist") from e
             if "unique" in str(e).lower():
                 raise InventoryError("A duplicate entry already exists", status.HTTP_409_CONFLICT) from e
+            if "check constraint" in str(e).lower():
+                raise InventoryError("Database constraint violation", status.HTTP_400_BAD_REQUEST) from e
             raise InventoryError("Database integrity error") from e
+        except OperationalError as e:
+            if "database is locked" in str(e).lower():
+                raise InventoryError("Database is busy, please try again", status.HTTP_503_SERVICE_UNAVAILABLE) from e
+            raise InventoryError("Database operation failed") from e
         except SQLAlchemyError as e:
             raise InventoryError("Database error") from e
+        except ValueError as e:
+            raise InventoryError(str(e), status.HTTP_400_BAD_REQUEST) from e
+        except HTTPException:
+            raise  # Re-raise HTTP exceptions as-is
         except Exception as e:
-            raise InventoryError(str(e)) from e
+            # Log unexpected errors for debugging
+            import logging
+            logging.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
+            raise InventoryError("Internal server error", status.HTTP_500_INTERNAL_SERVER_ERROR) from e
     
     return wrapper

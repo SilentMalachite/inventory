@@ -12,11 +12,17 @@
 - i18n: ユーザ向け文言は `src/app/locales/*.json` にキー追加し、`get_translator` で注入した翻訳関数を使用
 - 監査: 重要操作は `src/app/audit.py` の `audit()` を呼び出し記録
 - テスト: ユニットテストを `tests/` に追加（FastAPI TestClient を利用）
+- エラーハンドリング: `@handle_api_errors` デコレータを使用して一貫したエラー処理
 
 ## スタイル
-- 整形/静的解析（インストール済みの場合）:
-  - `uv run black src`
-  - `uv run ruff check src`
+- コード品質チェック: `python quality.py` で全てのチェックを実行
+- 個別チェック:
+  - フォーマット: `python quality.py format`
+  - リント: `python quality.py lint`
+  - 型チェック: `python quality.py type`
+  - テスト: `python quality.py test`
+  - セキュリティスキャン: `python quality.py security`
+- Pre-commitフック: `python quality.py setup-pre-commit` でインストール
 
 ## コミット・PR
 - Conventional Commits を推奨

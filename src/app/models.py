@@ -12,7 +12,7 @@ class BaseModel(SQLModel):
     """Base model with common fields and methods"""
     version: int = Field(default=0, description="楽観的ロック用バージョン")
 
-    def increment_version(self):
+    def increment_version(self) -> int:
         """Increment the version number for optimistic locking"""
         self.version += 1
         return self.version
@@ -65,14 +65,14 @@ class StockMovement(BaseModel, table=True):
 
 # 楽観的ロックのためのイベントリスナーを設定
 @event.listens_for(Item, 'before_update')
-def receive_before_update(mapper, connection, target):
+def receive_before_update(mapper, connection, target) -> None:
     """更新前にバージョン番号をインクリメント"""
     target.increment_version()
 
 
 # 在庫移動時の整合性チェック
 @event.listens_for(StockMovement, 'before_insert')
-def check_stock_balance(mapper, connection, target):
+def check_stock_balance(mapper, connection, target) -> None:
     """在庫移動前に在庫残高をチェック"""
     if target.type == 'OUT':
         # 出庫の場合は在庫残高をチェック
@@ -85,7 +85,7 @@ def check_stock_balance(mapper, connection, target):
 
 
 @event.listens_for(Session, 'after_flush')
-def validate_stock_balance(session: Session, context):
+def validate_stock_balance(session: Session, context) -> None:
     """フラッシュ後に在庫残高がマイナスになっていないか検証"""
     from .services.inventory import compute_item_balance
 

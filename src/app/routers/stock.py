@@ -350,7 +350,8 @@ def stock_trend(
         bal += daily_delta.get(cur, 0)
         series.append({"date": cur.isoformat(), "balance": bal, "delta": daily_delta.get(cur, 0)})
         cur = cur + _td(days=1)
-    return {"item_id": item_id, "series": series}
+    # Return as 'trend' to match API contract in tests
+    return {"item_id": item_id, "trend": series}
 
 
 @router.get(

@@ -12,6 +12,7 @@ from ..i18n import get_translator, Translator
 from ..schemas import ItemCreate, ItemUpdate
 from ..audit import audit
 from ..io_utils import items_to_csv, items_to_xlsx, parse_items_csv, parse_items_xlsx
+from ..exceptions import handle_api_errors
 
 router = APIRouter()
 
@@ -23,21 +24,18 @@ router = APIRouter()
     summary="商品を登録",
     description="SKUが一意になるように商品を作成します。",
 )
+@handle_api_errors
 def create_item(
     item: ItemCreate,
     session: Session = Depends(get_session),
     t: Translator = Depends(get_translator),
 ):
-    try:
-        obj = Item(**item.model_dump())
-        session.add(obj)
-        session.commit()
-        session.refresh(obj)
-        audit("item.create", id=obj.id, sku=obj.sku, name=obj.name)
-        return obj
-    except IntegrityError:
-        session.rollback()
-        raise HTTPException(status_code=409, detail=t("errors.duplicate_sku"))
+    obj = Item(**item.model_dump())
+    session.add(obj)
+    session.commit()
+    session.refresh(obj)
+    audit("item.create", id=obj.id, sku=obj.sku, name=obj.name)
+    return obj
 
 
 @router.get(
@@ -57,6 +55,7 @@ def list_items(page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=200), 
     summary="商品を取得",
     description="指定したIDの商品を返します。",
 )
+@handle_api_errors
 def get_item(item_id: int, session: Session = Depends(get_session), t: Translator = Depends(get_translator)):
     item = session.get(Item, item_id)
     if not item:
@@ -70,6 +69,7 @@ def get_item(item_id: int, session: Session = Depends(get_session), t: Translato
     summary="商品を更新",
     description="指定したIDの商品情報を更新します。",
 )
+@handle_api_errors
 def update_item(
     item_id: int,
     payload: ItemUpdate,
@@ -96,6 +96,7 @@ def update_item(
     summary="商品を削除",
     description="指定したIDの商品を削除します。",
 )
+@handle_api_errors
 def delete_item(item_id: int, session: Session = Depends(get_session), t: Translator = Depends(get_translator)):
     item = session.get(Item, item_id)
     if not item:

@@ -1,17 +1,26 @@
+from contextlib import asynccontextmanager
+import os
+import secrets
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from starlette.staticfiles import StaticFiles
 from importlib import resources as ir
 from starlette.middleware.sessions import SessionMiddleware
-import os
-import secrets
-from contextlib import asynccontextmanager
+from starlette.staticfiles import StaticFiles
 
-from .db import init_db, migrate_if_requested
-from .routers import items, stock, web
-from .i18n import LocaleMiddleware, get_translator, load_translations, Translator, translate, DEFAULT_LANG
 from .audit import audit
+from .config import get_settings
+from .db import init_db, migrate_if_requested
+from .i18n import (
+    DEFAULT_LANG,
+    LocaleMiddleware,
+    Translator,
+    get_translator,
+    load_translations,
+    translate,
+)
+from .routers import items, stock, web
 from .security import require_api_key
 
 # OpenAPI は起動時に固定値が必要なため、既定言語(ja)のロケールから埋め込む
@@ -19,7 +28,8 @@ load_translations()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> None:
+    """Application lifespan manager."""
     # startup
     init_db()
     migrate_if_requested()
@@ -32,6 +42,8 @@ async def lifespan(app: FastAPI):
         audit("app.stop")
 
 
+settings = get_settings()
+
 app = FastAPI(
     title=translate(DEFAULT_LANG, "docs.title"),
     description=translate(DEFAULT_LANG, "docs.description"),
@@ -41,11 +53,14 @@ app = FastAPI(
     ],
     lifespan=lifespan,
 )
+
 app.add_middleware(LocaleMiddleware)
+
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("INVENTORY_SECRET_KEY") or secrets.token_urlsafe(32),
+    secret_key=settings.secret_key,
     same_site="strict",
+    https_only=settings.is_production,
 )
 
 # Static files for Web UI
@@ -64,11 +79,14 @@ def health(t: Translator = Depends(get_translator)):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # Simple JA-friendly message with field-level messages mapped when possible
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Handle validation errors with localized messages."""
     lang = getattr(request.state, "lang", "ja")
 
     def ja_msg(msg: str) -> str:
+        """Convert English validation messages to Japanese."""
         m = msg.lower()
         if "field required" in m:
             return "必須項目です"
@@ -89,15 +107,21 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "field": loc,
             "message": ja_msg(e.get("msg", "")) if lang == "ja" else e.get("msg", ""),
         })
+    
     detail = translate(lang, "errors.validation_failed")
     if detail == "errors.validation_failed":
         detail = "入力値が不正です" if lang == "ja" else "Invalid input"
-    return JSONResponse(status_code=422, content={"detail": detail, "errors": errors})
+    
+    return JSONResponse(
+        status_code=422, 
+        content={"detail": detail, "errors": errors}
+    )
 
 
 # 簡易アクセスログ（監査用）
 @app.middleware("http")
 async def access_log(request: Request, call_next):
+    """Log HTTP access for auditing."""
     response = await call_next(request)
     try:
         audit(
@@ -108,10 +132,22 @@ async def access_log(request: Request, call_next):
             lang=getattr(request.state, "lang", "ja"),
         )
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.warning(f"Failed to log access: {e}")
     return response
 
 
-app.include_router(items.router, prefix="/items", tags=["items"], dependencies=[Depends(require_api_key)])
-app.include_router(stock.router, prefix="/stock", tags=["stock"], dependencies=[Depends(require_api_key)])
+app.include_router(
+    items.router, 
+    prefix="/items", 
+    tags=["items"], 
+    dependencies=[Depends(require_api_key)]
+)
+app.include_router(
+    stock.router, 
+    prefix="/stock", 
+    tags=["stock"], 
+    dependencies=[Depends(require_api_key)]
+)
 app.include_router(web.router)
