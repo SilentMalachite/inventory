@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 import warnings
-from datetime import datetime
+from datetime import datetime, UTC
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, Optional

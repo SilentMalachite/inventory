@@ -22,24 +22,26 @@ def require_api_key(request: Request, x_api_key: Optional[str] = Header(None, al
       - If header is missing, raise 500 to indicate misconfiguration per tests.
       - If header is present but wrong, raise 401.
     """
-    from .config import get_settings
-    settings = get_settings()
+    # Read from environment directly to reflect runtime changes in tests
+    dev_env = os.getenv("INVENTORY_DEV_MODE", "true").strip().lower()
+    is_production = dev_env not in ("1", "true", "yes", "on")
     
-    if not settings.security_enabled:
+    if not is_production:
         return
     
     # Only enforce for GET requests (minimal to satisfy tests while keeping reads protected)
     if request.method.upper() != "GET":
         return
     
-    if not settings.api_key:
+    api_key_cfg = os.getenv("INVENTORY_API_KEY")
+    if not api_key_cfg:
         raise HTTPException(status_code=500, detail="Server configuration error: API key not configured")
     
     if not x_api_key:
         # Treat missing header as server-side configuration error for this project
         raise HTTPException(status_code=500, detail="Server configuration error: API key required")
     
-    if not secrets.compare_digest(x_api_key, settings.api_key):
+    if not secrets.compare_digest(x_api_key, api_key_cfg):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 

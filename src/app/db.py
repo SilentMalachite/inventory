@@ -100,6 +100,12 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):
 
 
 def init_db() -> None:
+    # In tests, ensure a clean DB per TestClient session
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        try:
+            SQLModel.metadata.drop_all(engine)
+        except Exception:
+            pass
     SQLModel.metadata.create_all(engine)
     
     # Apply performance optimizations

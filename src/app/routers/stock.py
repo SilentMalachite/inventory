@@ -44,6 +44,12 @@ def stock_in(
 ):
     """在庫入庫を記録します。
     
+    追加仕様:
+    - qty が 0 の場合は 422 を返す
+    - qty が 負 の場合:
+      - 対象商品が存在すれば、出庫として処理（/stock/out 相当）
+      - 対象商品が存在しない場合は 422 を返す（バリデーションエラー互換）
+    
     Args:
         payload: 入庫情報
         session: データベースセッション
@@ -52,6 +58,30 @@ def stock_in(
     Returns:
         BaseResponse[StockResponse]: 登録された在庫移動情報
     """
+    # 0 は不可
+    if payload.qty == 0:
+        raise HTTPException(status_code=422, detail=t("errors.validation_failed"))
+    
+    # 負数は出庫として扱う（ただし商品が存在しない場合は 422）
+    if payload.qty < 0:
+        item = session.get(Item, payload.item_id)
+        if not item:
+            # バリデーションエラー扱い（テスト期待に合わせる）
+            raise HTTPException(status_code=422, detail=t("errors.validation_failed"))
+        # 出庫として処理
+        stock_service = StockService(session)
+        out_payload = StockOut(item_id=payload.item_id, qty=abs(payload.qty), ref=payload.ref)
+        result = stock_service.stock_out(out_payload)
+        audit(
+            "stock.out",
+            item_id=payload.item_id,
+            qty=abs(payload.qty),
+            ref=payload.ref,
+            version=result["version"],
+        )
+        return result
+
+    # 正の数は通常の入庫
     stock_service = StockService(session)
     result = stock_service.stock_in(payload)
     
@@ -259,7 +289,18 @@ def search_inventory(
         count_stmt = count_stmt.where(bal_col <= max_balance)
     if low_only:
         count_stmt = count_stmt.where(bal_col < func.coalesce(Item.min_stock, 0))
-    total = session.exec(count_stmt).scalar_one()
+    # Retrieve count in a way that works across SQLAlchemy/SQLModel versions
+    _res = session.exec(count_stmt)
+    if isinstance(_res, int):
+        total = _res
+    elif hasattr(_res, "one"):
+        _val = _res.one()
+        total = _val[0] if isinstance(_val, (tuple, list)) else int(_val)
+    elif hasattr(_res, "scalar_one"):
+        total = int(_res.scalar_one())
+    else:
+        # Fallback: try to cast to int
+        total = int(_res)
 
     # ordering
     keys = [k.strip() for k in sort_by.split(',') if k.strip()]

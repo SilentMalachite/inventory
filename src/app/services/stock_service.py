@@ -46,9 +46,12 @@ class StockService:
     
     @contextmanager
     def _transaction_context(self) -> Generator[None, None, None]:
-        """Context manager for database transactions with error handling."""
+        """Context manager for database transactions with error handling.
+        
+        Use a nested transaction to avoid conflicts when a transaction is already active.
+        """
         try:
-            with self.session.begin():
+            with self.session.begin_nested():
                 yield
         except IntegrityError as e:
             logger.error(f"Database integrity error: {str(e)}")

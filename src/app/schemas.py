@@ -57,7 +57,7 @@ class ItemUpdate(BaseModel):
 
 class StockIn(BaseModel):
     item_id: int = Field(..., description="商品ID")
-    qty: int = Field(..., gt=0, description="入庫数（正の整数）")
+    qty: int = Field(..., description="入庫数（正の整数）")
     ref: str | None = Field(None, description="参照情報")
 
 

@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from ..db import get_session
-from ..models import Item
+from ..models import Item, StockMovement
 from ..i18n import get_translator, Translator
 from ..schemas import ItemCreate, ItemUpdate
 from ..audit import audit
@@ -101,6 +101,10 @@ def delete_item(item_id: int, session: Session = Depends(get_session), t: Transl
     item = session.get(Item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail=t("errors.item_not_found"))
+    # Delete dependent stock movements first to satisfy FK constraints
+    moves = session.exec(select(StockMovement).where(StockMovement.item_id == item_id)).all()
+    for m in moves:
+        session.delete(m)
     session.delete(item)
     session.commit()
     audit("item.delete", id=item_id)
