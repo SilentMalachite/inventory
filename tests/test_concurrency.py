@@ -13,10 +13,10 @@ def create_item(client: TestClient) -> int:
     r = client.post(
         "/items/",
         json={"sku": f"C-{uuid4().hex[:6]}", "name": "並行テスト", "min_stock": 0},
-        headers={"Accept-Language": "ja"},
-    )
-    assert r.status_code == 201, r.text
-    return r.json()["id"]
+        def do_out():
+            with TestClient(app) as thread_client:
+                r2 = thread_client.post("/stock/out", json={"item_id": item_id, "qty": 2})
+                results.append(r2.status_code)
 
 
 def test_concurrent_out_conflict_then_retry():
