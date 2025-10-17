@@ -6,13 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="0653fcef-5a30-40b8-982a-7782f0969ebe" name="変更" comment="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/audit.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/audit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/db.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/db.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/routers/items.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/routers/items.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/routers/stock.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/routers/stock.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/security.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/services/stock_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/services/stock_service.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -111,7 +104,8 @@
       <workItem from="1759437729529" duration="1506000" />
       <workItem from="1760172271956" duration="54000" />
       <workItem from="1760172393618" duration="48000" />
-      <workItem from="1760172472282" duration="649000" />
+      <workItem from="1760172472282" duration="705000" />
+      <workItem from="1760218323017" duration="77000" />
     </task>
     <task id="LOCAL-00001" summary="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags">
       <option name="closed" value="true" />
@@ -129,7 +123,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759439192511</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="ci(release-manual): patch spec Tree(...).datas -&gt; Tree(...) on-the-fly for older tags">
+      <option name="closed" value="true" />
+      <created>1760173125879</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1760173125879</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -1,11 +1,9 @@
 from contextlib import asynccontextmanager
-import os
-import secrets
+from importlib import resources as ir
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from importlib import resources as ir
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
@@ -28,7 +26,7 @@ load_translations()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> None:
+async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     """Application lifespan manager."""
     # startup
     init_db()
@@ -64,15 +62,22 @@ app.add_middleware(
 )
 
 # Static files for Web UI
-app.mount("/static", StaticFiles(directory=str(ir.files("app").joinpath("static"))), name="static")
+app.mount(
+    "/static",
+    StaticFiles(directory=str(ir.files("app").joinpath("static"))),
+    name="static",
+)
 # Serve SPA build (Vite outDir -> app/public)
 # public は開発・CI では未生成のことがあるため、check_dir=False でマウントして起動時エラーを回避
 app.mount(
     "/app",
-    StaticFiles(directory=str(ir.files("app").joinpath("public")), html=True, check_dir=False),
+    StaticFiles(
+        directory=str(ir.files("app").joinpath("public")), html=True, check_dir=False
+    ),
     name="spa",
 )
-    
+
+
 @app.get("/health")
 def health(t: Translator = Depends(get_translator)):
     return {"status": t("status.ok")}
@@ -103,19 +108,20 @@ async def validation_exception_handler(
     errors = []
     for e in exc.errors():
         loc = ".".join(str(p) for p in e.get("loc", []) if p != "body")
-        errors.append({
-            "field": loc,
-            "message": ja_msg(e.get("msg", "")) if lang == "ja" else e.get("msg", ""),
-        })
-    
+        errors.append(
+            {
+                "field": loc,
+                "message": (
+                    ja_msg(e.get("msg", "")) if lang == "ja" else e.get("msg", "")
+                ),
+            }
+        )
+
     detail = translate(lang, "errors.validation_failed")
     if detail == "errors.validation_failed":
         detail = "入力値が不正です" if lang == "ja" else "Invalid input"
-    
-    return JSONResponse(
-        status_code=422, 
-        content={"detail": detail, "errors": errors}
-    )
+
+    return JSONResponse(status_code=422, content={"detail": detail, "errors": errors})
 
 
 # 簡易アクセスログ（監査用）
@@ -133,21 +139,22 @@ async def access_log(request: Request, call_next):
         )
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"Failed to log access: {e}")
     return response
 
 
 app.include_router(
-    items.router, 
-    prefix="/items", 
-    tags=["items"], 
-    dependencies=[Depends(require_api_key)]
+    items.router,
+    prefix="/items",
+    tags=["items"],
+    dependencies=[Depends(require_api_key)],
 )
 app.include_router(
-    stock.router, 
-    prefix="/stock", 
-    tags=["stock"], 
-    dependencies=[Depends(require_api_key)]
+    stock.router,
+    prefix="/stock",
+    tags=["stock"],
+    dependencies=[Depends(require_api_key)],
 )
 app.include_router(web.router)

@@ -1,16 +1,17 @@
-from pathlib import Path
 import os
 import shutil
-from contextlib import contextmanager
-from typing import Generator
-from sqlmodel import SQLModel, create_engine, Session, or_
+from collections.abc import Generator
+from pathlib import Path
+
 from sqlalchemy import event
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlmodel import Session, SQLModel, create_engine
+
 
 def _resolve_app_dir() -> Path:
     """アプリ用ディレクトリの決定（権限制約に強い実装）。
     優先順位: ENV(`INVENTORY_APP_DIR`) -> `~/.inventory-system` -> `CWD/.inventory-system`
     """
+
     # 1) 環境変数優先
     def _writable(d: Path) -> bool:
         try:
@@ -56,7 +57,8 @@ if not DB_PATH.exists():
         DB_PATH.touch(exist_ok=True)
 
 # Configure SQLite for better concurrency
-from .config import get_settings
+from .config import get_settings  # noqa: E402
+
 settings = get_settings()
 
 engine = create_engine(
@@ -74,7 +76,7 @@ engine = create_engine(
 
 
 @event.listens_for(engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, connection_record):
+def _set_sqlite_pragma(dbapi_connection, connection_record):  # noqa: ARG001
     """Configure SQLite for better concurrency and performance."""
     try:
         cursor = dbapi_connection.cursor()
@@ -96,6 +98,7 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):
     except Exception as e:
         # Log warning but don't fail startup
         import logging
+
         logging.warning(f"Failed to set SQLite pragmas: {e}")
 
 
@@ -107,14 +110,19 @@ def init_db() -> None:
         except Exception:
             pass
     SQLModel.metadata.create_all(engine)
-    
+
     # Apply performance optimizations
-    from .services.performance import create_performance_indexes, optimize_database_settings
+    from .services.performance import (
+        create_performance_indexes,
+        optimize_database_settings,
+    )
+
     try:
         optimize_database_settings(engine)
         create_performance_indexes(engine)
     except Exception as e:
         import logging
+
         logging.warning(f"Failed to apply performance optimizations: {e}")
 
 
@@ -130,11 +138,16 @@ def migrate_if_requested() -> None:
     if os.environ.get("INVENTORY_MIGRATE", "").lower() not in ("1", "true", "yes"):
         return
     from sqlalchemy import text
+
     with engine.connect() as conn:
         if conn.dialect.name != "sqlite":
             return
         # 1) Ensure stockmovement.type CHECK constraint
-        row = conn.execute(text("SELECT sql FROM sqlite_master WHERE type='table' AND name='stockmovement'")) .fetchone()
+        row = conn.execute(
+            text(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='stockmovement'"
+            )
+        ).fetchone()
         ddl = row[0] if row and row[0] else ""
         if "ck_stockmovement_type" not in ddl:
             sql_script = """
@@ -164,20 +177,35 @@ def migrate_if_requested() -> None:
             raw = conn.connection
             raw.executescript(sql_script)
         # 2) Ensure item.version exists
-        cols = [r[1] for r in conn.execute(text("PRAGMA table_info('item')")).fetchall()]
+        cols = [
+            r[1] for r in conn.execute(text("PRAGMA table_info('item')")).fetchall()
+        ]
         if "version" not in cols:
-            conn.execute(text("ALTER TABLE item ADD COLUMN version INTEGER NOT NULL DEFAULT 0"))
+            conn.execute(
+                text("ALTER TABLE item ADD COLUMN version INTEGER NOT NULL DEFAULT 0")
+            )
         # 3) Ensure stockmovement.version and stockmovement.meta exist
-        sm_cols = [r[1] for r in conn.execute(text("PRAGMA table_info('stockmovement')")).fetchall()]
+        sm_cols = [
+            r[1]
+            for r in conn.execute(text("PRAGMA table_info('stockmovement')")).fetchall()
+        ]
         if "version" not in sm_cols:
-            conn.execute(text("ALTER TABLE stockmovement ADD COLUMN version INTEGER NOT NULL DEFAULT 0"))
+            conn.execute(
+                text(
+                    "ALTER TABLE stockmovement ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
+                )
+            )
         if "meta" not in sm_cols:
-            conn.execute(text("ALTER TABLE stockmovement ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'"))
+            conn.execute(
+                text(
+                    "ALTER TABLE stockmovement ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'"
+                )
+            )
 
 
 def get_session() -> Generator[Session, None, None]:
     """セッションを取得するコンテキストマネージャー
-    
+
     Example:
         with get_session() as session:
             # トランザクション内の処理
@@ -197,13 +225,14 @@ def get_session() -> Generator[Session, None, None]:
 
 def with_transaction(session: Session):
     """トランザクションを明示的に開始するデコレータ
-    
+
     Example:
         @with_transaction(session)
         def update_item(session, item_id, new_name):
             item = session.get(Item, item_id)
             item.name = new_name
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             try:
@@ -213,5 +242,7 @@ def with_transaction(session: Session):
             except Exception as e:
                 session.rollback()
                 raise e
+
         return wrapper
+
     return decorator

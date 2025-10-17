@@ -1,25 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
-from fastapi.responses import StreamingResponse, JSONResponse
-from datetime import datetime, UTC
 import io
-from typing import Optional, List, Dict, Any
+from datetime import UTC, datetime
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
+from ..audit import audit
 from ..db import get_session
-from ..i18n import get_translator, Translator
+from ..exceptions import handle_api_errors
+from ..i18n import Translator, get_translator
+from ..models import Item, StockMovement
 from ..schemas import (
+    ErrorResponse,
+    StockAdjust,
     StockIn,
     StockOut,
-    StockAdjust,
     StockResponse,
-    ErrorResponse,
 )
-from ..models import Item, StockMovement
-from ..services.stock_service import StockService
-from ..audit import audit
-from ..exceptions import handle_api_errors
 from ..services.inventory import compute_all_balances
+from ..services.stock_service import StockService
 
 router = APIRouter()
 
@@ -32,9 +31,12 @@ router = APIRouter()
     description="指定した商品に対する入庫を記録します。",
     responses={
         404: {"model": ErrorResponse, "description": "商品が見つからない場合"},
-        409: {"model": ErrorResponse, "description": "楽観的ロックの競合が発生した場合"},
+        409: {
+            "model": ErrorResponse,
+            "description": "楽観的ロックの競合が発生した場合",
+        },
         400: {"model": ErrorResponse, "description": "バリデーションエラー"},
-    }
+    },
 )
 @handle_api_errors
 def stock_in(
@@ -43,25 +45,25 @@ def stock_in(
     t: Translator = Depends(get_translator),
 ):
     """在庫入庫を記録します。
-    
+
     追加仕様:
     - qty が 0 の場合は 422 を返す
     - qty が 負 の場合:
       - 対象商品が存在すれば、出庫として処理（/stock/out 相当）
       - 対象商品が存在しない場合は 422 を返す（バリデーションエラー互換）
-    
+
     Args:
         payload: 入庫情報
         session: データベースセッション
         t: 翻訳関数
-        
+
     Returns:
         BaseResponse[StockResponse]: 登録された在庫移動情報
     """
     # 0 は不可
     if payload.qty == 0:
         raise HTTPException(status_code=422, detail=t("errors.validation_failed"))
-    
+
     # 負数は出庫として扱う（ただし商品が存在しない場合は 422）
     if payload.qty < 0:
         item = session.get(Item, payload.item_id)
@@ -70,7 +72,9 @@ def stock_in(
             raise HTTPException(status_code=422, detail=t("errors.validation_failed"))
         # 出庫として処理
         stock_service = StockService(session)
-        out_payload = StockOut(item_id=payload.item_id, qty=abs(payload.qty), ref=payload.ref)
+        out_payload = StockOut(
+            item_id=payload.item_id, qty=abs(payload.qty), ref=payload.ref
+        )
         result = stock_service.stock_out(out_payload)
         audit(
             "stock.out",
@@ -84,16 +88,16 @@ def stock_in(
     # 正の数は通常の入庫
     stock_service = StockService(session)
     result = stock_service.stock_in(payload)
-    
+
     # 監査ログ
     audit(
         "stock.in",
         item_id=payload.item_id,
         qty=payload.qty,
         ref=payload.ref,
-        version=result["version"]
+        version=result["version"],
     )
-    
+
     return result
 
 
@@ -106,40 +110,43 @@ def stock_in(
     responses={
         404: {"model": ErrorResponse, "description": "商品が見つからない場合"},
         400: {"model": ErrorResponse, "description": "在庫が不足している場合"},
-        409: {"model": ErrorResponse, "description": "楽観的ロックの競合が発生した場合"},
-    }
+        409: {
+            "model": ErrorResponse,
+            "description": "楽観的ロックの競合が発生した場合",
+        },
+    },
 )
 @handle_api_errors
 def stock_out(
     payload: StockOut,
     session: Session = Depends(get_session),
-    t: Translator = Depends(get_translator),
+    t: Translator = Depends(get_translator),  # noqa: ARG001
 ):
     """在庫出庫を記録します。
-    
+
     Args:
         payload: 出庫情報
         session: データベースセッション
         t: 翻訳関数
-        
+
     Returns:
         BaseResponse[StockResponse]: 登録された在庫移動情報
-        
+
     Raises:
         HTTPException: 商品が見つからない場合、在庫不足、または楽観的ロックエラーが発生した場合
     """
     stock_service = StockService(session)
     result = stock_service.stock_out(payload)
-    
+
     # 監査ログ
     audit(
         "stock.out",
         item_id=payload.item_id,
         qty=payload.qty,
         ref=payload.ref,
-        version=result["version"]
+        version=result["version"],
     )
-    
+
     return result
 
 
@@ -152,28 +159,31 @@ def stock_out(
     responses={
         404: {"model": ErrorResponse, "description": "商品が見つからない場合"},
         400: {"model": ErrorResponse, "description": "調整数量が0の場合"},
-        409: {"model": ErrorResponse, "description": "楽観的ロックの競合が発生した場合"},
-    }
+        409: {
+            "model": ErrorResponse,
+            "description": "楽観的ロックの競合が発生した場合",
+        },
+    },
 )
 @handle_api_errors
 def stock_adjust(
     payload: StockAdjust,
     session: Session = Depends(get_session),
-    t: Translator = Depends(get_translator),
+    t: Translator = Depends(get_translator),  # noqa: ARG001
 ):
     """在庫調整を記録します。
-    
+
     Args:
         payload: 調整情報
         session: データベースセッション
         t: 翻訳関数
-        
+
     Returns:
         BaseResponse[StockResponse]: 登録された在庫調整情報
     """
     stock_service = StockService(session)
     result = stock_service.adjust_stock(payload)
-    
+
     # 監査ログ
     audit(
         "stock.adjust",
@@ -181,9 +191,9 @@ def stock_adjust(
         qty=payload.qty,
         ref=payload.ref,
         version=result["version"],
-        metadata={"previous_balance": result.get("previous_balance")}
+        metadata={"previous_balance": result.get("previous_balance")},
     )
-    
+
     return result
 
 
@@ -191,23 +201,21 @@ def stock_adjust(
     "/balance/{item_id}",
     summary="在庫残高を取得",
     description="指定した商品の現在の在庫数と在庫ステータスを取得します。",
-    responses={
-        404: {"model": ErrorResponse, "description": "商品が見つからない場合"}
-    }
+    responses={404: {"model": ErrorResponse, "description": "商品が見つからない場合"}},
 )
 @handle_api_errors
 def get_balance(
     item_id: int,
     session: Session = Depends(get_session),
-    t: Translator = Depends(get_translator)
+    t: Translator = Depends(get_translator),  # noqa: ARG001
 ):
     """指定した商品の在庫残高を取得します。
-    
+
     Args:
         item_id: 商品ID
         session: データベースセッション
         t: 翻訳関数
-        
+
     Returns:
         BaseResponse[StockBalanceResponse]: 在庫残高情報
     """
@@ -222,14 +230,12 @@ def get_balance(
     description="登録されている全商品の在庫残高を返します。",
 )
 @handle_api_errors
-async def get_all_balances(
-    session: Session = Depends(get_session)
-):
+async def get_all_balances(session: Session = Depends(get_session)):
     """全商品の在庫残高を取得します。
-    
+
     Args:
         session: データベースセッション
-        
+
     Returns:
         BaseResponse[List[Dict[str, Any]]]: 全商品の在庫残高リスト
     """
@@ -248,25 +254,45 @@ def search_inventory(
     low_only: bool = Query(False, description="最低在庫を下回る商品のみ"),
     min_balance: int | None = Query(None, description="在庫数の最小値"),
     max_balance: int | None = Query(None, description="在庫数の最大値"),
-    sort_by: str = Query("id", description="カンマ区切り可: id,sku,name,category,balance,min_stock"),
+    sort_by: str = Query(
+        "id", description="カンマ区切り可: id,sku,name,category,balance,min_stock"
+    ),
     sort_dir: str = Query("asc", description="カンマ区切り可: asc または desc"),
     page: int = Query(1, ge=1, description="ページ番号(1開始)"),
     size: int = Query(20, ge=1, le=200, description="1ページ件数"),
     session: Session = Depends(get_session),
 ):
-    from sqlalchemy import func, case
+    from sqlalchemy import case, func
     from sqlmodel import select
 
-    bal_expr = func.sum(case((StockMovement.type == "IN", StockMovement.qty), (StockMovement.type == "OUT", -StockMovement.qty), else_=StockMovement.qty))
-    bq = select(StockMovement.item_id, bal_expr.label("balance")).group_by(StockMovement.item_id).subquery("b")
+    bal_expr = func.sum(
+        case(
+            (StockMovement.type == "IN", StockMovement.qty),
+            (StockMovement.type == "OUT", -StockMovement.qty),
+            else_=StockMovement.qty,
+        )
+    )
+    bq = (
+        select(StockMovement.item_id, bal_expr.label("balance"))
+        .group_by(StockMovement.item_id)
+        .subquery("b")
+    )
 
     bal_col = func.coalesce(bq.c.balance, 0)
-    base = select(Item, bal_col.label("balance")).select_from(Item).join(bq, bq.c.item_id == Item.id, isouter=True)
+    base = (
+        select(Item, bal_col.label("balance"))
+        .select_from(Item)
+        .join(bq, bq.c.item_id == Item.id, isouter=True)
+    )
 
     # filters
     if q:
         like = f"%{q}%"
-        base = base.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
+        base = base.where(
+            (Item.sku.ilike(like))
+            | (Item.name.ilike(like))
+            | (Item.category.ilike(like))
+        )
     if category:
         base = base.where(Item.category == category)
     if min_balance is not None:
@@ -277,10 +303,18 @@ def search_inventory(
         base = base.where(bal_col < func.coalesce(Item.min_stock, 0))
 
     # total count
-    count_stmt = select(func.count()).select_from(Item).join(bq, bq.c.item_id == Item.id, isouter=True)
+    count_stmt = (
+        select(func.count())
+        .select_from(Item)
+        .join(bq, bq.c.item_id == Item.id, isouter=True)
+    )
     if q:
         like = f"%{q}%"
-        count_stmt = count_stmt.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
+        count_stmt = count_stmt.where(
+            (Item.sku.ilike(like))
+            | (Item.name.ilike(like))
+            | (Item.category.ilike(like))
+        )
     if category:
         count_stmt = count_stmt.where(Item.category == category)
     if min_balance is not None:
@@ -303,8 +337,8 @@ def search_inventory(
         total = int(_res)
 
     # ordering
-    keys = [k.strip() for k in sort_by.split(',') if k.strip()]
-    dirs = [d.strip().lower() for d in sort_dir.split(',') if d.strip()]
+    keys = [k.strip() for k in sort_by.split(",") if k.strip()]
+    dirs = [d.strip().lower() for d in sort_dir.split(",") if d.strip()]
     order_terms = []
     for idx, k in enumerate(keys or ["id"]):
         direction = dirs[idx] if idx < len(dirs) else "asc"
@@ -332,16 +366,18 @@ def search_inventory(
     items_page = []
     for it, bal in rows:
         bal = bal or 0
-        items_page.append({
-            "id": it.id,
-            "sku": it.sku,
-            "name": it.name,
-            "category": it.category,
-            "unit": it.unit,
-            "min_stock": it.min_stock,
-            "balance": bal,
-            "low": bal < (it.min_stock or 0),
-        })
+        items_page.append(
+            {
+                "id": it.id,
+                "sku": it.sku,
+                "name": it.name,
+                "category": it.category,
+                "unit": it.unit,
+                "min_stock": it.min_stock,
+                "balance": bal,
+                "low": bal < (it.min_stock or 0),
+            }
+        )
     return {"items": items_page, "total": total, "page": page, "size": size}
 
 
@@ -359,15 +395,16 @@ def stock_trend(
     item = session.get(Item, item_id)
     if not item:
         raise HTTPException(404, t("errors.item_not_found"))
-    from datetime import datetime, timedelta
     from collections import defaultdict
+    from datetime import datetime, timedelta
 
     end = datetime.now(UTC).date()
-    start = end - timedelta(days=days-1)
+    start = end - timedelta(days=days - 1)
 
     # Movements up to end date
     rows = session.exec(
-        select(StockMovement).where(StockMovement.item_id==item_id)
+        select(StockMovement)
+        .where(StockMovement.item_id == item_id)
         .order_by(StockMovement.moved_at)
     ).all()
 
@@ -376,7 +413,7 @@ def stock_trend(
     daily_delta = defaultdict(int)
     for m in rows:
         d = m.moved_at.date()
-        delta = m.qty if m.type in ("IN","ADJUST") else -m.qty
+        delta = m.qty if m.type in ("IN", "ADJUST") else -m.qty
         if d < start:
             start_balance += delta
         elif start <= d <= end:
@@ -387,9 +424,12 @@ def stock_trend(
     bal = start_balance
     cur = start
     from datetime import timedelta as _td
+
     while cur <= end:
         bal += daily_delta.get(cur, 0)
-        series.append({"date": cur.isoformat(), "balance": bal, "delta": daily_delta.get(cur, 0)})
+        series.append(
+            {"date": cur.isoformat(), "balance": bal, "delta": daily_delta.get(cur, 0)}
+        )
         cur = cur + _td(days=1)
     # Return as 'trend' to match API contract in tests
     return {"item_id": item_id, "trend": series}
@@ -411,20 +451,43 @@ def export_search_csv(
     encoding: str = Query("utf-8-sig"),
     session: Session = Depends(get_session),
 ):
-    from sqlalchemy import func, case
+    from sqlalchemy import case, func
     from sqlmodel import select
 
-    bal_expr = func.sum(case((StockMovement.type == "IN", StockMovement.qty), (StockMovement.type == "OUT", -StockMovement.qty), else_=StockMovement.qty))
-    bq = select(StockMovement.item_id, bal_expr.label("balance")).group_by(StockMovement.item_id).subquery("b")
+    bal_expr = func.sum(
+        case(
+            (StockMovement.type == "IN", StockMovement.qty),
+            (StockMovement.type == "OUT", -StockMovement.qty),
+            else_=StockMovement.qty,
+        )
+    )
+    bq = (
+        select(StockMovement.item_id, bal_expr.label("balance"))
+        .group_by(StockMovement.item_id)
+        .subquery("b")
+    )
     bal_col = func.coalesce(bq.c.balance, 0)
 
-    base = select(
-        Item.sku, Item.name, Item.category, Item.unit, Item.min_stock, bal_col.label("balance")
-    ).select_from(Item).join(bq, bq.c.item_id == Item.id, isouter=True)
+    base = (
+        select(
+            Item.sku,
+            Item.name,
+            Item.category,
+            Item.unit,
+            Item.min_stock,
+            bal_col.label("balance"),
+        )
+        .select_from(Item)
+        .join(bq, bq.c.item_id == Item.id, isouter=True)
+    )
 
     if q:
         like = f"%{q}%"
-        base = base.where((Item.sku.ilike(like)) | (Item.name.ilike(like)) | (Item.category.ilike(like)))
+        base = base.where(
+            (Item.sku.ilike(like))
+            | (Item.name.ilike(like))
+            | (Item.category.ilike(like))
+        )
     if category:
         base = base.where(Item.category == category)
     if min_balance is not None:
@@ -435,8 +498,8 @@ def export_search_csv(
         base = base.where(bal_col < func.coalesce(Item.min_stock, 0))
 
     # ordering
-    keys = [k.strip() for k in sort_by.split(',') if k.strip()]
-    dirs = [d.strip().lower() for d in sort_dir.split(',') if d.strip()]
+    keys = [k.strip() for k in sort_by.split(",") if k.strip()]
+    dirs = [d.strip().lower() for d in sort_dir.split(",") if d.strip()]
     order_terms = []
     for idx, k in enumerate(keys or ["sku"]):
         direction = dirs[idx] if idx < len(dirs) else "asc"
@@ -471,7 +534,12 @@ def export_search_csv(
     ]
 
     from ..io_utils import dicts_to_csv
-    content = dicts_to_csv(["sku","name","category","unit","min_stock","balance"], rows, encoding=encoding)
+
+    content = dicts_to_csv(
+        ["sku", "name", "category", "unit", "min_stock", "balance"],
+        rows,
+        encoding=encoding,
+    )
     filename = f"items_search_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.csv"
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
     media = f"text/csv; charset={encoding}"

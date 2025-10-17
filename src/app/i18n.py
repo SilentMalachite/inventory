@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import json
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
+from importlib import resources as importlib_resources
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from importlib import resources as importlib_resources
-
 
 SUPPORTED_LANGS = ("en", "ja")
 DEFAULT_LANG = "ja"
 
-_catalogs: Dict[str, dict] = {}
+_catalogs: dict[str, dict] = {}
 
 
 def load_translations() -> None:
@@ -21,13 +20,17 @@ def load_translations() -> None:
     package = "app.locales"
     for lang in SUPPORTED_LANGS:
         try:
-            with importlib_resources.files(package).joinpath(f"{lang}.json").open("rb") as f:
+            with (
+                importlib_resources.files(package)
+                .joinpath(f"{lang}.json")
+                .open("rb") as f
+            ):
                 _catalogs[lang] = json.load(f)
         except Exception:
             _catalogs[lang] = {}
 
 
-def _resolve_key(data: dict, dotted_key: str) -> Optional[str]:
+def _resolve_key(data: dict, dotted_key: str) -> str | None:
     cur: object = data
     for part in dotted_key.split("."):
         if not isinstance(cur, dict) or part not in cur:
@@ -55,7 +58,7 @@ def translate(lang: str, key: str, **kwargs) -> str:
         return text
 
 
-def _normalize_lang(raw: Optional[str]) -> str:
+def _normalize_lang(raw: str | None) -> str:
     if not raw:
         return DEFAULT_LANG
     raw = raw.lower()

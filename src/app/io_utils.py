@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime
-from typing import Iterable, List, Tuple
+from collections.abc import Iterable
 
 from openpyxl import Workbook, load_workbook
 
 from .models import Item
-
 
 CSV_HEADERS = ["sku", "name", "category", "unit", "min_stock"]
 
@@ -21,13 +19,15 @@ def items_to_csv(items: Iterable[Item], encoding: str = "utf-8-sig") -> bytes:
     writer = csv.writer(sio)
     writer.writerow(CSV_HEADERS)
     for it in items:
-        writer.writerow([
-            it.sku,
-            it.name,
-            it.category or "",
-            it.unit,
-            it.min_stock,
-        ])
+        writer.writerow(
+            [
+                it.sku,
+                it.name,
+                it.category or "",
+                it.unit,
+                it.min_stock,
+            ]
+        )
     text = sio.getvalue()
     return text.encode(encoding)
 
@@ -44,7 +44,9 @@ def items_to_xlsx(items: Iterable[Item]) -> bytes:
     return bio.getvalue()
 
 
-def dicts_to_csv(headers: list[str], rows: list[dict], encoding: str = "utf-8-sig") -> bytes:
+def dicts_to_csv(
+    headers: list[str], rows: list[dict], encoding: str = "utf-8-sig"
+) -> bytes:
     sio = io.StringIO(newline="")
     writer = csv.writer(sio)
     writer.writerow(headers)
@@ -53,13 +55,12 @@ def dicts_to_csv(headers: list[str], rows: list[dict], encoding: str = "utf-8-si
     return sio.getvalue().encode(encoding)
 
 
-def parse_items_csv(data: bytes, encoding: str | None = None) -> List[dict]:
+def parse_items_csv(data: bytes, encoding: str | None = None) -> list[dict]:
     """Parse CSV bytes into list of dicts. If encoding is None, try utf-8-sig then cp932.
     Returns list of dicts with keys CSV_HEADERS, min_stock as int.
     """
-    errors: List[str] = []
-    tried: List[str] = []
-    for enc in ([encoding] if encoding else ["utf-8-sig", "cp932", "utf-8"]):
+    tried: list[str] = []
+    for enc in [encoding] if encoding else ["utf-8-sig", "cp932", "utf-8"]:
         if enc is None:
             continue
         tried.append(enc)
@@ -71,7 +72,7 @@ def parse_items_csv(data: bytes, encoding: str | None = None) -> List[dict]:
     else:
         raise ValueError(f"CSVのエンコード判定に失敗しました: {tried}")
 
-    out: List[dict] = []
+    out: list[dict] = []
     reader = csv.DictReader(io.StringIO(text))  # type: ignore[arg-type]
     fieldnames = reader.fieldnames or []
     missing = [h for h in CSV_HEADERS if h not in fieldnames]
@@ -92,7 +93,7 @@ def parse_items_csv(data: bytes, encoding: str | None = None) -> List[dict]:
     return out
 
 
-def parse_items_xlsx(data: bytes) -> List[dict]:
+def parse_items_xlsx(data: bytes) -> list[dict]:
     bio = io.BytesIO(data)
     wb = load_workbook(bio, read_only=True)
     ws = wb.active
@@ -104,7 +105,7 @@ def parse_items_xlsx(data: bytes) -> List[dict]:
     missing = [k for k, i in idx.items() if i < 0]
     if missing:
         raise ValueError(f"Excelのヘッダーが不足しています: {missing}")
-    out: List[dict] = []
+    out: list[dict] = []
     for r in rows[1:]:
         rec = {
             "sku": (r[idx["sku"]] or "").strip(),
